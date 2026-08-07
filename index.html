@@ -300,6 +300,13 @@ function parseJwt(token){
   }catch(e){ return null; }
 }
 
+function tokenExpirado(token){
+  const payload = parseJwt(token);
+  if(!payload || !payload.exp) return true;
+  // 'exp' viene en segundos; le restamos un margen de 30s de seguridad
+  return (payload.exp * 1000) <= (Date.now() + 30000);
+}
+
 function handleCredentialResponse(response){
   idToken = response.credential;
   sessionStorage.setItem('stockapp_token', idToken);
@@ -351,6 +358,12 @@ window.addEventListener('load', function(){
     );
   }
 
+  if(idToken && tokenExpirado(idToken)){
+    // el token guardado ya venció: lo descartamos y pedimos login de nuevo
+    idToken = null;
+    sessionStorage.removeItem('stockapp_token');
+  }
+
   if(idToken){
     entrarApp();
   }else{
@@ -371,7 +384,11 @@ async function cargarDatos(){
     if(!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if(data && data.error){
-      mostrarLogin('Tu cuenta no tiene acceso a esta app. Probá con otra cuenta de Google o pedí que te agreguen.');
+      if(tokenExpirado(idToken)){
+        mostrarLogin('Tu sesión expiró. Iniciá sesión de nuevo.');
+      }else{
+        mostrarLogin('Tu cuenta no tiene acceso a esta app. Probá con otra cuenta de Google o pedí que te agreguen.');
+      }
       return;
     }
     movimientos = data;
