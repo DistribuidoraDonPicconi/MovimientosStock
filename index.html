@@ -59,10 +59,11 @@
     letter-spacing:0.2px;
   }
   .icon-btn{
-    background:#fff; border:1px solid var(--azul-borde); padding:8px; cursor:pointer;
+    background:#fff; border:1px solid var(--azul-borde); padding:11px; cursor:pointer;
     color:var(--azul); display:flex; align-items:center; justify-content:center;
     border-radius:12px; box-shadow:0 1px 2px rgba(22,48,92,0.06);
   }
+  .icon-btn.logout{ color:var(--rojo); }
   .icon-btn:active{ background:var(--azul-suave); }
   .icon-btn svg{ width:19px; height:19px; }
   .icon-btn.spinning svg{ animation: spin 0.8s linear infinite; }
@@ -151,10 +152,115 @@
   table.mov td.num.zero{ color:#c3cad9; font-weight:500; }
   table.mov tbody tr:nth-child(even){ background:#fafbfd; }
 
+  /* Pantalla de bloqueo (PIN) */
+  #lock-screen{
+    position:fixed; inset:0; z-index:100;
+    background:var(--azul-osc);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  #lock-screen.hidden{ display:none; }
+  .lock-box{
+    width:100%; max-width:320px; text-align:center;
+  }
+  .lock-box .lock-logo{
+    width:64px; height:64px; border-radius:16px;
+    background:var(--azul); color:#fff; font-weight:800; font-size:22px;
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 18px;
+  }
+  .lock-box h2{
+    color:#fff; font-size:19px; margin:0 0 4px; font-weight:800;
+  }
+  .lock-box p{
+    color:#a9b8d6; font-size:14px; margin:0 0 22px;
+  }
+  .lock-box input{
+    width:100%; padding:14px 16px; border-radius:12px; border:none;
+    font-size:20px; text-align:center; letter-spacing:4px;
+    outline:none; margin-bottom:14px;
+  }
+  .lock-box button{
+    width:100%; padding:13px; border-radius:12px; border:none;
+    background:#fff; color:var(--azul-osc); font-weight:800; font-size:16px;
+    cursor:pointer;
+  }
+  .lock-box button:active{ opacity:0.85; }
+  .lock-box .lock-error{
+    color:#ff8a80; font-size:13px; margin-top:12px; min-height:16px;
+  }
 
+  /* Modal de confirmación (cerrar sesión) */
+  #confirm-modal{
+    position:fixed; inset:0; z-index:200;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  #confirm-modal.hidden{ display:none; }
+  .confirm-box{
+    width:100%; max-width:320px;
+    background:#fff; border-radius:18px;
+    padding:26px 22px 20px;
+    text-align:center;
+    box-shadow:0 12px 30px rgba(17,22,36,0.25);
+  }
+  .confirm-box .confirm-icon{
+    width:52px; height:52px; border-radius:50%;
+    background:#fdecea; color:var(--rojo);
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 14px;
+  }
+  .confirm-box .confirm-icon svg{ width:24px; height:24px; }
+  .confirm-box h3{
+    font-size:17px; margin:0 0 6px; color:#111624; font-weight:800;
+  }
+  .confirm-box p{
+    font-size:14px; color:var(--texto-tenue); margin:0 0 20px; line-height:1.4;
+  }
+  .confirm-box .confirm-actions{
+    display:flex; gap:10px;
+  }
+  .confirm-box button{
+    flex:1; padding:12px; border-radius:12px; border:none;
+    font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .confirm-box .btn-cancelar{
+    background:var(--azul-suave); color:var(--azul-osc);
+  }
+  .confirm-box .btn-cancelar:active{ background:var(--azul-borde); }
+  .confirm-box .btn-confirmar{
+    background:var(--rojo); color:#fff;
+  }
+  .confirm-box .btn-confirmar:active{ opacity:0.85; }
 </style>
 </head>
 <body>
+
+<div id="lock-screen">
+  <div class="lock-box">
+    <div class="lock-logo">DP</div>
+    <h2>Acceso restringido</h2>
+    <p>Ingresá el PIN para entrar</p>
+    <input type="password" id="lock-input" inputmode="numeric" placeholder="••••" autocomplete="off">
+    <button id="lock-btn">Ingresar</button>
+    <div class="lock-error" id="lock-error"></div>
+  </div>
+</div>
+
+<div id="confirm-modal" class="hidden">
+  <div class="confirm-box">
+    <div class="confirm-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </div>
+    <h3>Cerrar sesión</h3>
+    <p>Vas a tener que ingresar el PIN de nuevo para volver a entrar en este celular.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancelar" id="confirm-cancelar">Cancelar</button>
+      <button class="btn-confirmar" id="confirm-aceptar">Cerrar sesión</button>
+    </div>
+  </div>
+</div>
 
 <div id="app">
 
@@ -164,9 +270,14 @@
         <h1 id="header-title">Stock</h1>
         <div class="sub">Distribuidora Don Picconi</div>
       </div>
-      <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-      </button>
+      <div style="display:flex; gap:22px;">
+        <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+        <button class="icon-btn logout" id="btn-logout" aria-label="Cerrar sesión">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -191,6 +302,9 @@
 const CONFIG = {
   // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0mM9REyJlaJ6Qk7_wN_QpNaDiL6LV0UdGycle3TlwtJVjX98XFYnxmsccEk4VqK9hNg/exec',
+
+  // PIN/clave para entrar a la app. Cambialo por el que quieras usar.
+  PIN: '4508',
 
   // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
   CAMPO_FECHA: 'Fecha',
@@ -227,9 +341,56 @@ function formatNum(n){
   return Number(n || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
-window.addEventListener('load', function(){
-  cargarDatos();
+/* ============== Bloqueo con PIN ============== */
+const AUTH_KEY = 'dp_stock_auth_ok';
+const lockScreen = document.getElementById('lock-screen');
+const lockInput = document.getElementById('lock-input');
+const lockBtn = document.getElementById('lock-btn');
+const lockError = document.getElementById('lock-error');
+
+function intentarDesbloquear(){
+  if(lockInput.value === CONFIG.PIN){
+    localStorage.setItem(AUTH_KEY, 'ok');
+    lockScreen.classList.add('hidden');
+    cargarDatos();
+  }else{
+    lockError.textContent = 'PIN incorrecto';
+    lockInput.value = '';
+    lockInput.focus();
+  }
+}
+
+lockBtn.addEventListener('click', intentarDesbloquear);
+lockInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') intentarDesbloquear();
 });
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.remove('hidden');
+});
+
+document.getElementById('confirm-cancelar').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.add('hidden');
+});
+
+document.getElementById('confirm-aceptar').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.add('hidden');
+  localStorage.removeItem(AUTH_KEY);
+  lockInput.value = '';
+  lockError.textContent = '';
+  lockScreen.classList.remove('hidden');
+  lockInput.focus();
+});
+
+window.addEventListener('load', function(){
+  if(localStorage.getItem(AUTH_KEY) === 'ok'){
+    lockScreen.classList.add('hidden');
+    cargarDatos();
+  }else{
+    lockInput.focus();
+  }
+});
+/* =============================================== */
 
 async function cargarDatos(){
   btnRefresh.classList.add('spinning');
