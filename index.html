@@ -233,6 +233,89 @@
     background:var(--rojo); color:#fff;
   }
   .confirm-box .btn-confirmar:active{ opacity:0.85; }
+
+  /* Botón flotante (+) para nuevo movimiento */
+  .fab{
+    position:fixed; bottom:28px;
+    right:max(22px, calc((100vw - 520px) / 2 + 22px));
+    width:56px; height:56px; border-radius:50%;
+    background:var(--azul); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 16px rgba(42,92,201,0.45);
+    cursor:pointer; z-index:50;
+  }
+  .fab.hidden{ display:none; }
+  .fab svg{ width:26px; height:26px; }
+  .fab:active{ transform:scale(0.94); }
+
+  /* Modal Nuevo Movimiento */
+  #nuevo-modal{
+    position:fixed; inset:0; z-index:150;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #nuevo-modal.hidden{ display:none; }
+  .nuevo-box{
+    width:100%; max-width:520px; max-height:88vh;
+    background:#fff; border-radius:20px 20px 0 0;
+    display:flex; flex-direction:column;
+    box-shadow:0 -8px 24px rgba(17,22,36,0.25);
+  }
+  .nuevo-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px 14px; border-bottom:1px solid var(--linea); flex-shrink:0;
+  }
+  .nuevo-header h3{ margin:0; font-size:18px; font-weight:800; color:#111624; }
+  .nuevo-close{
+    background:var(--azul-suave); border:none; color:var(--azul-osc);
+    width:30px; height:30px; border-radius:50%; font-size:18px; line-height:1;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .nuevo-body{
+    padding:16px 20px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  .nuevo-body label{
+    display:block; font-size:13px; font-weight:700; color:var(--azul-osc);
+    margin:14px 0 6px;
+  }
+  .nuevo-body label:first-child{ margin-top:0; }
+  .nuevo-body input[type="text"],
+  .nuevo-body input[type="date"]{
+    width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
+    font-size:16px; outline:none; color:#1a1f2b; background:#fff;
+  }
+  .nuevo-body input:focus{ border-color:var(--azul); }
+  .nuevo-productos-title{
+    font-size:13px; font-weight:800; color:var(--azul-osc);
+    margin:20px 0 8px; padding-top:14px; border-top:1px solid var(--linea);
+  }
+  .nuevo-productos-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px 12px;
+  }
+  .nuevo-prod-item label{
+    margin:0 0 5px; font-size:12.5px; font-weight:700; color:#4a5670;
+  }
+  .nuevo-prod-item input{
+    width:100%; padding:10px 11px; border-radius:10px; border:1px solid var(--azul-borde);
+    font-size:16px; outline:none; color:#1a1f2b;
+  }
+  .nuevo-prod-item input:focus{ border-color:var(--azul); }
+  .nuevo-footer{
+    display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--linea);
+    flex-shrink:0; background:#fff;
+  }
+  .nuevo-footer button{
+    flex:1; padding:13px; border-radius:12px; border:none;
+    font-size:15px; font-weight:800; cursor:pointer;
+  }
+  .nuevo-footer .btn-cancelar{ background:var(--azul-suave); color:var(--azul-osc); }
+  .nuevo-footer .btn-cancelar:active{ background:var(--azul-borde); }
+  .nuevo-footer .btn-guardar{ background:var(--azul); color:#fff; }
+  .nuevo-footer .btn-guardar:active{ opacity:0.88; }
+  .nuevo-footer .btn-guardar:disabled{ opacity:0.6; }
+  .nuevo-error{
+    color:var(--rojo); font-size:13px; text-align:center; padding:0 20px 4px;
+  }
 </style>
 </head>
 <body>
@@ -258,6 +341,43 @@
     <div class="confirm-actions">
       <button class="btn-cancelar" id="confirm-cancelar">Cancelar</button>
       <button class="btn-confirmar" id="confirm-aceptar">Cerrar sesión</button>
+    </div>
+  </div>
+</div>
+
+<button id="fab-nuevo" class="fab hidden" aria-label="Nuevo movimiento">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<div id="nuevo-modal" class="hidden">
+  <div class="nuevo-box">
+    <div class="nuevo-header">
+      <h3>Nuevo movimiento</h3>
+      <button class="nuevo-close" id="nuevo-cerrar" aria-label="Cerrar">×</button>
+    </div>
+    <div class="nuevo-body">
+      <label>Sección</label>
+      <input type="text" id="nm-seccion" placeholder="Ej: Ventas, Compras, Ajustes">
+
+      <label>Concepto</label>
+      <input type="text" id="nm-concepto" placeholder="Ej: Venta cliente, Compra proveedor">
+
+      <label>Notas</label>
+      <input type="text" id="nm-notas" placeholder="Opcional">
+
+      <label>Usuario</label>
+      <input type="text" id="nm-usuario" placeholder="Tu nombre">
+
+      <label>Fecha</label>
+      <input type="date" id="nm-fecha">
+
+      <div class="nuevo-productos-title">Cantidades (dejá vacío lo que no tuvo movimiento; usá signo − para salidas)</div>
+      <div class="nuevo-productos-grid" id="nm-productos"></div>
+    </div>
+    <div class="nuevo-error" id="nuevo-error"></div>
+    <div class="nuevo-footer">
+      <button class="btn-cancelar" id="nuevo-cancelar-btn">Cancelar</button>
+      <button class="btn-guardar" id="nuevo-guardar">Guardar</button>
     </div>
   </div>
 </div>
@@ -301,7 +421,7 @@
 /* ============== CONFIGURACIÓN ============== */
 const CONFIG = {
   // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz0mM9REyJlaJ6Qk7_wN_QpNaDiL6LV0UdGycle3TlwtJVjX98XFYnxmsccEk4VqK9hNg/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxV-3ozAFkPJ5WvutB-lpZDOQe-tFmDAmjzqSACmgeAzm4tIclFBOgN72zhooPha_LDeQ/exec',
 
   // PIN/clave para entrar a la app. Cambialo por el que quieras usar.
   PIN: '4508',
@@ -567,6 +687,7 @@ function setTab(tab){
   currentTab = tab;
   document.getElementById('tab-stock').classList.toggle('active', tab === 'stock');
   document.getElementById('tab-mov').classList.toggle('active', tab === 'movimientos');
+  fabNuevo.classList.toggle('hidden', tab !== 'movimientos');
   render();
 }
 
@@ -579,6 +700,107 @@ searchEl.addEventListener('input', () => {
   scrollState.movimientos = { top: 0, left: 0 };
   render();
 });
+
+/* ============== Nuevo movimiento ============== */
+const USUARIO_KEY = 'dp_stock_usuario';
+const fabNuevo = document.getElementById('fab-nuevo');
+const nuevoModal = document.getElementById('nuevo-modal');
+const nmProductosWrap = document.getElementById('nm-productos');
+const nmSeccion = document.getElementById('nm-seccion');
+const nmConcepto = document.getElementById('nm-concepto');
+const nmNotas = document.getElementById('nm-notas');
+const nmUsuario = document.getElementById('nm-usuario');
+const nmFecha = document.getElementById('nm-fecha');
+const nuevoError = document.getElementById('nuevo-error');
+const btnGuardar = document.getElementById('nuevo-guardar');
+
+// generar un input por producto, una sola vez
+nmProductosWrap.innerHTML = CONFIG.PRODUCTOS.map((p, i) => `
+  <div class="nuevo-prod-item">
+    <label for="nm-prod-${i}">${p}</label>
+    <input type="number" step="any" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0">
+  </div>
+`).join('');
+
+function abrirNuevoModal(){
+  nmSeccion.value = '';
+  nmConcepto.value = '';
+  nmNotas.value = '';
+  nmUsuario.value = localStorage.getItem(USUARIO_KEY) || '';
+  nmFecha.value = new Date().toISOString().slice(0,10);
+  nmProductosWrap.querySelectorAll('input').forEach(inp => inp.value = '');
+  nuevoError.textContent = '';
+  btnGuardar.disabled = false;
+  btnGuardar.textContent = 'Guardar';
+  nuevoModal.classList.remove('hidden');
+}
+
+function cerrarNuevoModal(){
+  nuevoModal.classList.add('hidden');
+}
+
+fabNuevo.addEventListener('click', abrirNuevoModal);
+document.getElementById('nuevo-cerrar').addEventListener('click', cerrarNuevoModal);
+document.getElementById('nuevo-cancelar-btn').addEventListener('click', cerrarNuevoModal);
+
+btnGuardar.addEventListener('click', async () => {
+  nuevoError.textContent = '';
+
+  const seccion = nmSeccion.value.trim();
+  const concepto = nmConcepto.value.trim();
+
+  if(!seccion && !concepto){
+    nuevoError.textContent = 'Completá al menos Sección o Concepto.';
+    return;
+  }
+
+  const productos = {};
+  let hayCantidad = false;
+  nmProductosWrap.querySelectorAll('input').forEach(inp => {
+    const val = inp.value.trim();
+    if(val !== ''){
+      productos[inp.dataset.producto] = val;
+      hayCantidad = true;
+    }
+  });
+
+  if(!hayCantidad){
+    nuevoError.textContent = 'Cargá al menos la cantidad de un producto.';
+    return;
+  }
+
+  const usuario = nmUsuario.value.trim();
+  if(usuario) localStorage.setItem(USUARIO_KEY, usuario);
+
+  const payload = {
+    seccion, concepto,
+    notas: nmNotas.value.trim(),
+    usuario,
+    fecha: nmFecha.value,
+    productos
+  };
+
+  btnGuardar.disabled = true;
+  btnGuardar.textContent = 'Guardando...';
+
+  try{
+    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if(data && data.error) throw new Error(data.error);
+
+    cerrarNuevoModal();
+    await cargarDatos();
+  }catch(err){
+    nuevoError.textContent = 'No se pudo guardar: ' + err.message;
+  }finally{
+    btnGuardar.disabled = false;
+    btnGuardar.textContent = 'Guardar';
+  }
+});
+/* =================================================== */
 
 /* ============== PWA: registro del Service Worker ============== */
 if('serviceWorker' in navigator){
