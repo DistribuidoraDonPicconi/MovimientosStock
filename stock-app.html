@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Stock</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root{
+    --azul-osc: #16305c;
+    --azul: #2a5cc9;
+    --azul-suave: #eef3fc;
+    --azul-borde: #d7e2f5;
+    --ambar: #b5651d;
+    --fondo: #f4f7fc;
+    --linea: #e7ecf5;
+    --verde: #1f8a4c;
+    --rojo: #c0392b;
+    --texto-tenue: #7c8aa3;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--fondo);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:#1a1f2b;
+  }
+  #app{
+    display:flex; flex-direction:column;
+    height:100vh; height:100dvh;
+    max-width:520px; margin:0 auto;
+    background:var(--fondo);
+  }
+
+  /* Header */
+  header{
+    padding:18px 20px 4px;
+    flex-shrink:0;
+  }
+  header .top-row{
+    display:flex; align-items:flex-start; justify-content:space-between;
+  }
+  header h1{
+    font-size:24px; margin:0; color:#111624; font-weight:800;
+    letter-spacing:-0.4px;
+  }
+  header .sub{
+    font-size:12.5px; color:var(--azul); font-weight:700; margin-top:4px;
+    letter-spacing:0.2px;
+  }
+  .icon-btn{
+    background:#fff; border:1px solid var(--azul-borde); padding:8px; cursor:pointer;
+    color:var(--azul); display:flex; align-items:center; justify-content:center;
+    border-radius:12px; box-shadow:0 1px 2px rgba(22,48,92,0.06);
+  }
+  .icon-btn:active{ background:var(--azul-suave); }
+  .icon-btn svg{ width:19px; height:19px; }
+  .icon-btn.spinning svg{ animation: spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* Pill tabs */
+  .pill-tabs{
+    display:flex; gap:4px;
+    background:#fff; border:1px solid var(--azul-borde);
+    border-radius:14px; padding:4px;
+    margin:14px 20px 0;
+    flex-shrink:0;
+    box-shadow:0 1px 3px rgba(22,48,92,0.05);
+  }
+  .pill-tabs button{
+    flex:1; border:none; background:transparent; cursor:pointer;
+    padding:10px 8px; border-radius:11px;
+    font-size:13.5px; font-weight:700; color:var(--texto-tenue);
+    transition:background .15s, color .15s;
+  }
+  .pill-tabs button.active{
+    background:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
+
+  /* Search */
+  .search-wrap{ padding:12px 20px 6px; flex-shrink:0; }
+  .search-wrap input{
+    width:100%; padding:10px 13px; border-radius:11px; border:1px solid var(--azul-borde);
+    background:#fff; font-size:14px; outline:none; color:#1a1f2b;
+  }
+  .search-wrap input:focus{ border-color:var(--azul); }
+  .search-wrap input::placeholder{ color:#a7b2c6; }
+
+  /* Content */
+  main{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 20px 24px; }
+  /* En la pestaña Movimientos, main deja de scrollear: la tabla scrollea sola
+     (así el encabezado puede quedar fijo con position:sticky) */
+  main.grid-mode{
+    display:flex; flex-direction:column; overflow:hidden; padding-bottom:12px;
+  }
+  main.grid-mode .mov-table-wrap{ flex:1; min-height:0; display:flex; flex-direction:column; }
+
+  .state-msg{ padding:40px 20px; text-align:center; color:var(--texto-tenue); font-size:14px; }
+  .state-msg.error{ color:var(--rojo); }
+
+  .col-labels{
+    display:flex; padding:8px 14px 6px; font-size:11px; font-weight:700;
+    color:var(--texto-tenue); text-transform:uppercase; letter-spacing:0.4px;
+  }
+  .col-labels .l-prod{ flex:1; }
+  .col-labels .l-stock{ width:96px; text-align:center; }
+  .col-labels .l-fecha{ width:88px; text-align:center; }
+
+  /* Tarjetas Stock Actual */
+  .stock-card{
+    background:#fff; border:1px solid var(--linea); border-radius:14px;
+    display:flex; align-items:center; gap:10px;
+    padding:12px 14px; margin-bottom:8px;
+    box-shadow:0 1px 2px rgba(22,48,92,0.04);
+  }
+  .stock-card .prod{
+    flex:1; font-size:14.5px; font-weight:700; color:#1a1f2b;
+  }
+  .stock-card .box{
+    background:var(--azul-suave); border:1px solid var(--azul-borde);
+    border-radius:10px; padding:8px 6px; text-align:center;
+  }
+  .stock-card .box.stock{ width:96px; font-weight:800; color:#1a1f2b; font-size:14px; }
+  .stock-card .box.fecha{ width:88px; font-weight:600; color:var(--azul-osc); font-size:12px; }
+
+  /* Lista Movimientos */
+  /* Tabla Movimientos */
+  .mov-table-wrap{
+    border:1.5px solid var(--azul); border-radius:14px; overflow:hidden;
+    background:#fff; box-shadow:0 1px 3px rgba(22,48,92,0.08);
+  }
+  .mov-scroll{
+    overflow:auto; -webkit-overflow-scrolling:touch;
+  }
+  table.mov{ border-collapse:separate; border-spacing:0; width:100%; min-width:760px; }
+  table.mov th{
+    position:sticky; top:0; background:#fff; z-index:1;
+    text-align:left; font-size:14.5px; color:#1a1f2b; font-weight:800;
+    padding:14px 18px; border-bottom:2px solid var(--azul); white-space:nowrap;
+    box-shadow:0 2px 4px rgba(22,48,92,0.15);
+  }
+  table.mov td{
+    padding:14px 18px; font-size:15px; white-space:nowrap;
+    border-bottom:1px solid var(--linea); color:#1a1f2b;
+  }
+  table.mov td.fecha{ color:var(--azul); font-weight:700; }
+  table.mov td.num{ text-align:right; font-weight:700; }
+  table.mov td.num.pos{ color:var(--verde); }
+  table.mov td.num.neg{ color:var(--rojo); }
+  table.mov td.num.zero{ color:#c3cad9; font-weight:500; }
+  table.mov tbody tr:nth-child(even){ background:#fafbfd; }
+
+  /* Pantalla de login */
+  .login-screen{
+    position:fixed; inset:0; z-index:50;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--fondo); padding:24px;
+  }
+  .login-card{
+    max-width:340px; width:100%; text-align:center;
+    background:#fff; border:1px solid var(--linea); border-radius:18px;
+    padding:32px 24px; box-shadow:0 4px 18px rgba(22,48,92,0.08);
+  }
+  .login-card h1{ margin:0 0 2px; font-size:24px; color:#111624; font-weight:800; }
+  .login-card .sub{ font-size:12.5px; color:var(--azul); font-weight:700; margin-bottom:18px; }
+  .login-msg{ font-size:13.5px; color:var(--texto-tenue); margin:0 0 20px; line-height:1.5; }
+  #google-btn{ display:flex; justify-content:center; }
+  .login-error{
+    margin-top:16px; font-size:12.5px; color:var(--rojo); background:#fbebe9;
+    border-radius:9px; padding:9px 12px; display:none;
+  }
+
+  /* Chip de usuario logueado en el header */
+  .user-chip{
+    display:flex; align-items:center; gap:8px; margin-top:4px;
+  }
+  .user-chip img{ width:20px; height:20px; border-radius:50%; }
+  .user-chip span{ font-size:11.5px; color:var(--texto-tenue); font-weight:600; }
+  .logout-btn{
+    font-size:11px; color:var(--azul); font-weight:700; background:none; border:none;
+    cursor:pointer; padding:0; text-decoration:underline;
+  }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <h1>Stock</h1>
+    <div class="sub">Distribuidora Don Picconi</div>
+    <p class="login-msg">Iniciá sesión con tu cuenta de Google para acceder a los datos.</p>
+    <div id="google-btn"></div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+
+  <header>
+    <div class="top-row">
+      <div>
+        <h1 id="header-title">Stock</h1>
+        <div class="sub">Distribuidora Don Picconi</div>
+        <div class="user-chip" id="user-chip" style="display:none;">
+          <img id="user-pic" src="" alt="">
+          <span id="user-email"></span>
+          <button class="logout-btn" id="btn-logout">Salir</button>
+        </div>
+      </div>
+      <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="pill-tabs">
+    <button id="tab-stock" data-tab="stock" class="active">Stock Actual</button>
+    <button id="tab-mov" data-tab="movimientos">Movimientos</button>
+  </div>
+
+
+  <div class="search-wrap">
+    <input type="text" id="search" placeholder="Buscar producto...">
+  </div>
+
+  <main id="main">
+    <div class="state-msg" id="loading">Cargando datos...</div>
+  </main>
+
+</div>
+
+<script>
+/* ============== CONFIGURACIÓN ============== */
+const CONFIG = {
+  // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
+  APPS_SCRIPT_URL: 'PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT',
+
+  // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
+  CAMPO_FECHA: 'Fecha',
+
+  // Columnas de producto, en el orden en que querés que aparezcan
+  PRODUCTOS: [
+    'Cajones de Pollo', 'Unidades de Pollo', 'Cuarto', 'Filet de Muslo',
+    'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida',
+    'Carcaza', 'Medallones', 'Formitas', 'Tiritas'
+  ],
+
+  // El mismo Client ID que generaste en Google Cloud Console
+  GOOGLE_CLIENT_ID: 'PEGA_AQUI_TU_CLIENT_ID.apps.googleusercontent.com'
+};
+/* ============================================= */
+
+let movimientos = [];
+let currentTab = 'stock';
+let idToken = sessionStorage.getItem('stockapp_token') || null;
+let userInfo = null;
+
+const mainEl = document.getElementById('main');
+const searchEl = document.getElementById('search');
+const headerTitle = document.getElementById('header-title');
+const btnRefresh = document.getElementById('btn-refresh');
+const loginScreen = document.getElementById('login-screen');
+const loginError = document.getElementById('login-error');
+const appEl = document.getElementById('app');
+
+function formatFecha(valor){
+  if(!valor) return '-';
+  const d = new Date(valor);
+  if(isNaN(d)) return String(valor);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+function formatNum(n){
+  return Number(n || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+/* ============== LOGIN CON GOOGLE ============== */
+
+function parseJwt(token){
+  try{
+    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = decodeURIComponent(atob(base64).split('').map(function(c){
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+
+function handleCredentialResponse(response){
+  idToken = response.credential;
+  sessionStorage.setItem('stockapp_token', idToken);
+  userInfo = parseJwt(idToken);
+  entrarApp();
+}
+
+function mostrarUsuario(){
+  if(!userInfo) return;
+  const chip = document.getElementById('user-chip');
+  document.getElementById('user-pic').src = userInfo.picture || '';
+  document.getElementById('user-email').textContent = userInfo.email || '';
+  chip.style.display = 'flex';
+}
+
+function mostrarLogin(mensajeError){
+  idToken = null; userInfo = null;
+  sessionStorage.removeItem('stockapp_token');
+  appEl.style.display = 'none';
+  loginScreen.style.display = 'flex';
+  if(mensajeError){
+    loginError.textContent = mensajeError;
+    loginError.style.display = 'block';
+  }else{
+    loginError.style.display = 'none';
+  }
+  if(window.google && google.accounts && google.accounts.id){
+    google.accounts.id.disableAutoSelect();
+  }
+}
+
+function entrarApp(){
+  loginScreen.style.display = 'none';
+  appEl.style.display = 'flex';
+  if(!userInfo) userInfo = parseJwt(idToken);
+  mostrarUsuario();
+  cargarDatos();
+}
+
+window.addEventListener('load', function(){
+  if(window.google && google.accounts && google.accounts.id){
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('google-btn'),
+      { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with' }
+    );
+  }
+
+  if(idToken){
+    entrarApp();
+  }else{
+    loginScreen.style.display = 'flex';
+  }
+});
+
+document.getElementById('btn-logout').addEventListener('click', function(){
+  mostrarLogin();
+});
+/* ================================================ */
+
+async function cargarDatos(){
+  btnRefresh.classList.add('spinning');
+  try{
+    const url = CONFIG.APPS_SCRIPT_URL + '?token=' + encodeURIComponent(idToken || '');
+    const resp = await fetch(url, {cache:'no-store'});
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    if(data && data.error){
+      mostrarLogin('Tu cuenta no tiene acceso a esta app. Probá con otra cuenta de Google o pedí que te agreguen.');
+      return;
+    }
+    movimientos = data;
+    render();
+  }catch(err){
+    mainEl.innerHTML = `<div class="state-msg error">No se pudo cargar el Google Sheet.<br>${err.message}<br><br>Revisá que CONFIG.APPS_SCRIPT_URL esté bien configurada.</div>`;
+  }finally{
+    btnRefresh.classList.remove('spinning');
+  }
+}
+
+function calcularStock(){
+  const stock = {};
+  CONFIG.PRODUCTOS.forEach(p => stock[p] = {total:0, ultimaFecha:null});
+
+  movimientos.forEach(mov => {
+    CONFIG.PRODUCTOS.forEach(p => {
+      const cant = parseFloat(mov[p]);
+      if(!isNaN(cant) && cant !== 0){
+        stock[p].total += cant;
+        const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+        if(!isNaN(f) && (!stock[p].ultimaFecha || f > stock[p].ultimaFecha)){
+          stock[p].ultimaFecha = f;
+        }
+      }
+    });
+  });
+  return stock;
+}
+
+function renderStock(filtro){
+  const stock = calcularStock();
+  const filas = CONFIG.PRODUCTOS
+    .filter(p => !filtro || p.toLowerCase().includes(filtro.toLowerCase()))
+    .filter(p => Math.round((stock[p].total + Number.EPSILON) * 100) / 100 !== 0)
+    .map(p => {
+      const s = stock[p];
+      return `<div class="stock-card">
+        <div class="prod">${p}</div>
+        <div class="box stock">${formatNum(s.total)}</div>
+        <div class="box fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</div>
+      </div>`;
+    }).join('');
+
+  if(!filas){
+    mainEl.innerHTML = `<div class="state-msg">Sin productos que coincidan.</div>`;
+    return;
+  }
+
+  mainEl.innerHTML = `
+    <div class="col-labels">
+      <div class="l-prod">Producto</div>
+      <div class="l-stock">Stock</div>
+      <div class="l-fecha">Fecha Mov.</div>
+    </div>
+    ${filas}`;
+}
+
+function renderMovimientos(filtro){
+  const ordenados = [...movimientos].sort((a,b) => new Date(a[CONFIG.CAMPO_FECHA]) - new Date(b[CONFIG.CAMPO_FECHA]));
+
+  // columnas de producto a mostrar: si hay filtro, solo las que matchean; si no, todas
+  const productosVisibles = CONFIG.PRODUCTOS.filter(p =>
+    !filtro || p.toLowerCase().includes(filtro.toLowerCase())
+  );
+
+  const filas = ordenados
+    .filter(mov => {
+      if(!filtro) return true;
+      // coincide si el filtro matchea un producto con movimiento en esa fila,
+      // o si matchea el concepto/sección/notas
+      const matchProducto = CONFIG.PRODUCTOS.some(p => p.toLowerCase().includes(filtro.toLowerCase()) && parseFloat(mov[p]));
+      const texto = `${mov['Concepto']||''} ${mov['Sección']||''} ${mov['Notas']||''} ${mov['Usuario']||''}`.toLowerCase();
+      return matchProducto || texto.includes(filtro.toLowerCase());
+    })
+    .map(mov => {
+      const celdasProducto = productosVisibles.map(p => {
+        const val = parseFloat(mov[p]);
+        if(!val) return `<td class="num zero">-</td>`;
+        const cls = val >= 0 ? 'pos' : 'neg';
+        const signo = val >= 0 ? '+' : '';
+        return `<td class="num ${cls}">${signo}${formatNum(val)}</td>`;
+      }).join('');
+
+      return `<tr>
+        <td class="fecha">${formatFecha(mov[CONFIG.CAMPO_FECHA])}</td>
+        <td>${mov['Sección'] || '-'}</td>
+        <td>${mov['Concepto'] || '-'}</td>
+        <td>${mov['Notas'] || '-'}</td>
+        <td>${mov['Usuario'] || '-'}</td>
+        ${celdasProducto}
+      </tr>`;
+    }).join('');
+
+  if(!filas){
+    mainEl.innerHTML = `<div class="state-msg">Sin movimientos que coincidan.</div>`;
+    return;
+  }
+
+  const headerProductos = productosVisibles.map(p => `<th>${p}</th>`).join('');
+
+  mainEl.innerHTML = `
+    <div class="mov-table-wrap">
+      <div class="mov-scroll" id="mov-scroll">
+        <table class="mov">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Sección</th><th>Concepto</th><th>Notas</th><th>Usuario</th>
+              ${headerProductos}
+            </tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// Guarda la posición de scroll de cada pestaña para restaurarla al volver
+const scrollState = {
+  stock: 0,
+  movimientos: { top: 0, left: 0 }
+};
+
+function guardarScrollActual(){
+  if(currentTab === 'stock'){
+    scrollState.stock = mainEl.scrollTop;
+  }else{
+    const movScroll = document.getElementById('mov-scroll');
+    if(movScroll){
+      scrollState.movimientos.top = movScroll.scrollTop;
+      scrollState.movimientos.left = movScroll.scrollLeft;
+    }
+  }
+}
+
+function restaurarScroll(){
+  if(currentTab === 'stock'){
+    mainEl.scrollTop = scrollState.stock;
+  }else{
+    const movScroll = document.getElementById('mov-scroll');
+    if(movScroll){
+      movScroll.scrollTop = scrollState.movimientos.top;
+      movScroll.scrollLeft = scrollState.movimientos.left;
+    }
+  }
+}
+
+function render(){
+  const filtro = searchEl.value.trim();
+  mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
+  if(currentTab === 'stock'){
+    headerTitle.textContent = 'Stock';
+    renderStock(filtro);
+  }else{
+    headerTitle.textContent = 'Movimientos';
+    renderMovimientos(filtro);
+  }
+  restaurarScroll();
+}
+
+function setTab(tab){
+  if(tab === currentTab) return;
+  guardarScrollActual();
+  currentTab = tab;
+  document.getElementById('tab-stock').classList.toggle('active', tab === 'stock');
+  document.getElementById('tab-mov').classList.toggle('active', tab === 'movimientos');
+  render();
+}
+
+document.getElementById('tab-stock').addEventListener('click', () => setTab('stock'));
+document.getElementById('tab-mov').addEventListener('click', () => setTab('movimientos'));
+btnRefresh.addEventListener('click', cargarDatos);
+searchEl.addEventListener('input', () => {
+  // al filtrar, arrancamos la vista de nuevo desde arriba
+  scrollState.stock = 0;
+  scrollState.movimientos = { top: 0, left: 0 };
+  render();
+});
+
+</script>
+</body>
+</html>
