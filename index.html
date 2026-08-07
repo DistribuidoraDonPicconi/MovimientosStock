@@ -109,30 +109,20 @@
   .state-msg{ padding:40px 20px; text-align:center; color:var(--texto-tenue); font-size:14px; }
   .state-msg.error{ color:var(--rojo); }
 
-  .col-labels{
-    display:flex; padding:8px 14px 6px; font-size:12px; font-weight:700;
-    color:var(--texto-tenue); text-transform:uppercase; letter-spacing:0.4px;
+  /* Tabla Stock Actual */
+  .stock-table-wrap{
+    border:1px solid var(--linea); border-radius:14px; overflow:hidden;
+    background:#fff; box-shadow:0 1px 2px rgba(22,48,92,0.04);
   }
-  .col-labels .l-prod{ flex:1; }
-  .col-labels .l-stock{ width:108px; text-align:center; }
-  .col-labels .l-fecha{ width:94px; text-align:center; }
-
-  /* Tarjetas Stock Actual */
-  .stock-card{
-    background:#fff; border:1px solid var(--linea); border-radius:14px;
-    display:flex; align-items:center; gap:10px;
-    padding:14px; margin-bottom:8px;
-    box-shadow:0 1px 2px rgba(22,48,92,0.04);
+  table.stock{ border-collapse:collapse; width:100%; }
+  table.stock td{
+    padding:9px 12px; border-bottom:1px solid var(--linea); vertical-align:middle;
   }
-  .stock-card .prod{
-    flex:1; font-size:17px; font-weight:700; color:#1a1f2b;
-  }
-  .stock-card .box{
-    background:var(--azul-suave); border:1px solid var(--azul-borde);
-    border-radius:10px; padding:9px 6px; text-align:center;
-  }
-  .stock-card .box.stock{ width:108px; font-weight:800; color:#1a1f2b; font-size:17px; }
-  .stock-card .fecha{ width:94px; text-align:center; font-weight:600; color:var(--azul-osc); font-size:15px; }
+  table.stock tr:last-child td{ border-bottom:none; }
+  table.stock tr:nth-child(even){ background:#fafbfd; }
+  table.stock td.prod{ font-size:16px; font-weight:700; color:#1a1f2b; }
+  table.stock td.stock{ font-size:16px; font-weight:800; color:#1a1f2b; text-align:center; width:92px; white-space:nowrap; }
+  table.stock td.fecha{ font-size:13.5px; font-weight:600; color:var(--azul-osc); text-align:center; width:80px; white-space:nowrap; }
 
   /* Lista Movimientos */
   /* Tabla Movimientos */
@@ -186,7 +176,7 @@
   </div>
 
 
-  <div class="search-wrap">
+  <div class="search-wrap" id="search-wrap">
     <input type="text" id="search" placeholder="Buscar producto...">
   </div>
 
@@ -219,6 +209,7 @@ let currentTab = 'stock';
 
 const mainEl = document.getElementById('main');
 const searchEl = document.getElementById('search');
+const searchWrapEl = document.getElementById('search-wrap');
 const headerTitle = document.getElementById('header-title');
 const btnRefresh = document.getElementById('btn-refresh');
 const appEl = document.getElementById('app');
@@ -286,11 +277,11 @@ function renderStock(filtro){
     .filter(p => Math.round((stock[p].total + Number.EPSILON) * 100) / 100 !== 0)
     .map(p => {
       const s = stock[p];
-      return `<div class="stock-card">
-        <div class="prod">${p}</div>
-        <div class="box stock">${formatNum(s.total)}</div>
-        <div class="fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</div>
-      </div>`;
+      return `<tr>
+        <td class="prod">${p}</td>
+        <td class="stock">${formatNum(s.total)}</td>
+        <td class="fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</td>
+      </tr>`;
     }).join('');
 
   if(!filas){
@@ -299,12 +290,11 @@ function renderStock(filtro){
   }
 
   mainEl.innerHTML = `
-    <div class="col-labels">
-      <div class="l-prod">Producto</div>
-      <div class="l-stock">Stock</div>
-      <div class="l-fecha">Fecha Mov.</div>
-    </div>
-    ${filas}`;
+    <div class="stock-table-wrap">
+      <table class="stock">
+        <tbody>${filas}</tbody>
+      </table>
+    </div>`;
 }
 
 function renderMovimientos(filtro){
@@ -397,7 +387,8 @@ function restaurarScroll(){
 }
 
 function render(){
-  const filtro = searchEl.value.trim();
+  searchWrapEl.style.display = currentTab === 'movimientos' ? 'block' : 'none';
+  const filtro = currentTab === 'movimientos' ? searchEl.value.trim() : '';
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
   if(currentTab === 'stock'){
     headerTitle.textContent = 'Stock';
