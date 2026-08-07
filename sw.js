@@ -1,11 +1,11 @@
 /* Service Worker - Stock Don Picconi */
-const CACHE_NAME = 'stock-dp-v3';
+const CACHE_NAME = 'stock-dp-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // Instalación: precachea el cascarón de la app
