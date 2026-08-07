@@ -15,7 +15,6 @@
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --azul-osc: #16305c;
@@ -162,62 +161,18 @@
   table.mov td.num.zero{ color:#c3cad9; font-weight:500; }
   table.mov tbody tr:nth-child(even){ background:#fafbfd; }
 
-  /* Pantalla de login */
-  .login-screen{
-    position:fixed; inset:0; z-index:50;
-    display:flex; align-items:center; justify-content:center;
-    background:var(--fondo); padding:24px;
-  }
-  .login-card{
-    max-width:340px; width:100%; text-align:center;
-    background:#fff; border:1px solid var(--linea); border-radius:18px;
-    padding:32px 24px; box-shadow:0 4px 18px rgba(22,48,92,0.08);
-  }
-  .login-card h1{ margin:0 0 2px; font-size:24px; color:#111624; font-weight:800; }
-  .login-card .sub{ font-size:12.5px; color:var(--azul); font-weight:700; margin-bottom:18px; }
-  .login-msg{ font-size:13.5px; color:var(--texto-tenue); margin:0 0 20px; line-height:1.5; }
-  #google-btn{ display:flex; justify-content:center; }
-  .login-error{
-    margin-top:16px; font-size:12.5px; color:var(--rojo); background:#fbebe9;
-    border-radius:9px; padding:9px 12px; display:none;
-  }
 
-  /* Chip de usuario logueado en el header */
-  .user-chip{
-    display:flex; align-items:center; gap:8px; margin-top:4px;
-  }
-  .user-chip img{ width:20px; height:20px; border-radius:50%; }
-  .user-chip span{ font-size:11.5px; color:var(--texto-tenue); font-weight:600; }
-  .logout-btn{
-    font-size:11px; color:var(--azul); font-weight:700; background:none; border:none;
-    cursor:pointer; padding:0; text-decoration:underline;
-  }
 </style>
 </head>
 <body>
 
-<div class="login-screen" id="login-screen">
-  <div class="login-card">
-    <h1>Stock</h1>
-    <div class="sub">Distribuidora Don Picconi</div>
-    <p class="login-msg">Iniciá sesión con tu cuenta de Google para acceder a los datos.</p>
-    <div id="google-btn"></div>
-    <div class="login-error" id="login-error"></div>
-  </div>
-</div>
-
-<div id="app" style="display:none;">
+<div id="app">
 
   <header>
     <div class="top-row">
       <div>
         <h1 id="header-title">Stock</h1>
         <div class="sub">Distribuidora Don Picconi</div>
-        <div class="user-chip" id="user-chip" style="display:none;">
-          <img id="user-pic" src="" alt="">
-          <span id="user-email"></span>
-          <button class="logout-btn" id="btn-logout">Salir</button>
-        </div>
       </div>
       <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -255,24 +210,17 @@ const CONFIG = {
     'Cajones de Pollo', 'Unidades de Pollo', 'Cuarto', 'Filet de Muslo',
     'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida',
     'Carcaza', 'Medallones', 'Formitas', 'Tiritas'
-  ],
-
-  // El mismo Client ID que generaste en Google Cloud Console
-  GOOGLE_CLIENT_ID: '922655936984-eb35rn1hu1855l6b4939qvvl286h7l10.apps.googleusercontent.com'
+  ]
 };
 /* ============================================= */
 
 let movimientos = [];
 let currentTab = 'stock';
-let idToken = sessionStorage.getItem('stockapp_token') || null;
-let userInfo = null;
 
 const mainEl = document.getElementById('main');
 const searchEl = document.getElementById('search');
 const headerTitle = document.getElementById('header-title');
 const btnRefresh = document.getElementById('btn-refresh');
-const loginScreen = document.getElementById('login-screen');
-const loginError = document.getElementById('login-error');
 const appEl = document.getElementById('app');
 
 function formatFecha(valor){
@@ -288,101 +236,19 @@ function formatNum(n){
   return Number(n || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
-/* ============== LOGIN CON GOOGLE ============== */
-
-function parseJwt(token){
-  try{
-    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    const json = decodeURIComponent(atob(base64).split('').map(function(c){
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(json);
-  }catch(e){ return null; }
-}
-
-function tokenExpirado(token){
-  const payload = parseJwt(token);
-  if(!payload || !payload.exp) return true;
-  // 'exp' viene en segundos; le restamos un margen de 30s de seguridad
-  return (payload.exp * 1000) <= (Date.now() + 30000);
-}
-
-function handleCredentialResponse(response){
-  idToken = response.credential;
-  sessionStorage.setItem('stockapp_token', idToken);
-  userInfo = parseJwt(idToken);
-  entrarApp();
-}
-
-function mostrarUsuario(){
-  if(!userInfo) return;
-  const chip = document.getElementById('user-chip');
-  document.getElementById('user-pic').src = userInfo.picture || '';
-  document.getElementById('user-email').textContent = userInfo.email || '';
-  chip.style.display = 'flex';
-}
-
-function mostrarLogin(mensajeError){
-  idToken = null; userInfo = null;
-  sessionStorage.removeItem('stockapp_token');
-  appEl.style.display = 'none';
-  loginScreen.style.display = 'flex';
-  if(mensajeError){
-    loginError.textContent = mensajeError;
-    loginError.style.display = 'block';
-  }else{
-    loginError.style.display = 'none';
-  }
-  if(window.google && google.accounts && google.accounts.id){
-    google.accounts.id.disableAutoSelect();
-  }
-}
-
-function entrarApp(){
-  loginScreen.style.display = 'none';
-  appEl.style.display = 'flex';
-  if(!userInfo) userInfo = parseJwt(idToken);
-  mostrarUsuario();
-  cargarDatos();
-}
-
 window.addEventListener('load', function(){
-  if(window.google && google.accounts && google.accounts.id){
-    google.accounts.id.initialize({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse
-    });
-    google.accounts.id.renderButton(
-      document.getElementById('google-btn'),
-      { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with' }
-    );
-  }
-
-  if(idToken){
-    entrarApp();
-  }else{
-    loginScreen.style.display = 'flex';
-  }
+  cargarDatos();
 });
-
-document.getElementById('btn-logout').addEventListener('click', function(){
-  mostrarLogin();
-});
-/* ================================================ */
 
 async function cargarDatos(){
   btnRefresh.classList.add('spinning');
   try{
-    const url = CONFIG.APPS_SCRIPT_URL + '?token=' + encodeURIComponent(idToken || '');
-    const resp = await fetch(url, {cache:'no-store'});
+    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {cache:'no-store'});
     if(!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if(data && data.error){
       movimientos = [];
-      const msg = tokenExpirado(idToken)
-        ? 'Tu sesión expiró y no se pudieron actualizar los datos. Tocá "Actualizar" después de volver a iniciar sesión (botón "Salir" arriba), o esperá a la próxima apertura.'
-        : 'Tu cuenta no tiene acceso a los datos de este Google Sheet. Probá con otra cuenta de Google o pedí que te agreguen.';
-      mainEl.innerHTML = `<div class="state-msg error">${msg}</div>`;
+      mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos: ${data.error}</div>`;
       return;
     }
     movimientos = data;
