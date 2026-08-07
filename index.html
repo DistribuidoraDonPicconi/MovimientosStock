@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Stock</title>
+
+<!-- PWA: instalable en el celular -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16305c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stock DP">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
@@ -234,7 +245,7 @@
 /* ============== CONFIGURACIÓN ============== */
 const CONFIG = {
   // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyYdSWU6RskrDwtLrU93knx62NBO9mdGR5gccxx9YMRmP7KiAowW1knCNSzLwVIgoyy/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxHWoiIDU-wGs8cALEUO8CQdrOh2b4cQcsqQuu5-4lF3bxSZTvwoLGkhYk9KQgGLgDumA/exec',
 
   // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
   CAMPO_FECHA: 'Fecha',
@@ -287,6 +298,13 @@ function parseJwt(token){
     }).join(''));
     return JSON.parse(json);
   }catch(e){ return null; }
+}
+
+function tokenExpirado(token){
+  const payload = parseJwt(token);
+  if(!payload || !payload.exp) return true;
+  // 'exp' viene en segundos; le restamos un margen de 30s de seguridad
+  return (payload.exp * 1000) <= (Date.now() + 30000);
 }
 
 function handleCredentialResponse(response){
@@ -360,7 +378,11 @@ async function cargarDatos(){
     if(!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if(data && data.error){
-      mostrarLogin('Tu cuenta no tiene acceso a esta app. Probá con otra cuenta de Google o pedí que te agreguen.');
+      movimientos = [];
+      const msg = tokenExpirado(idToken)
+        ? 'Tu sesión expiró y no se pudieron actualizar los datos. Tocá "Actualizar" después de volver a iniciar sesión (botón "Salir" arriba), o esperá a la próxima apertura.'
+        : 'Tu cuenta no tiene acceso a los datos de este Google Sheet. Probá con otra cuenta de Google o pedí que te agreguen.';
+      mainEl.innerHTML = `<div class="state-msg error">${msg}</div>`;
       return;
     }
     movimientos = data;
@@ -539,6 +561,16 @@ searchEl.addEventListener('input', () => {
   scrollState.movimientos = { top: 0, left: 0 };
   render();
 });
+
+/* ============== PWA: registro del Service Worker ============== */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('No se pudo registrar el Service Worker:', err);
+    });
+  });
+}
+/* ================================================================ */
 
 </script>
 </body>
