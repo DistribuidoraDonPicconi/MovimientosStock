@@ -181,6 +181,12 @@
   table.resumen-table th.entradas,
   table.resumen-table th.salidas,
   table.resumen-table th.total{ width:68px; }
+  table.resumen-table tr.cajas-pollo-row{ background:#eef3fc; }
+  table.resumen-table tr.cajas-pollo-row td{ border-top:1.5px solid var(--azul-borde); }
+  table.resumen-table tr.cajas-pollo-row td.prod{ font-weight:800; color:var(--azul-osc); }
+  table.resumen-table tr.cajas-pollo-row td.entradas,
+  table.resumen-table tr.cajas-pollo-row td.salidas,
+  table.resumen-table tr.cajas-pollo-row td.total{ font-weight:800; }
 
   /* Lista Movimientos */
   /* Tabla Movimientos */
@@ -872,6 +878,29 @@ function calcularResumen(){
   return resumen;
 }
 
+// Productos que se consideran "trozado" para el cálculo de Cajas de Pollo
+// (todo el trozado, sin contar Cajones/Unidades de Pollo enteras ni
+// Medallones, Formitas o Tiritas)
+const TROZADO_PRODUCTOS = ['Cuarto', 'Filet de Muslo', 'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida', 'Carcaza'];
+
+function calcularCajasPollo(resumen){
+  const cajones = resumen['Cajones de Pollo'] || {entradas:0, salidas:0, total:0};
+  const unidades = resumen['Unidades de Pollo'] || {entradas:0, salidas:0, total:0};
+  const trozado = {entradas:0, salidas:0, total:0};
+  TROZADO_PRODUCTOS.forEach(p => {
+    if(resumen[p]){
+      trozado.entradas += resumen[p].entradas;
+      trozado.salidas += resumen[p].salidas;
+      trozado.total += resumen[p].total;
+    }
+  });
+  return {
+    entradas: cajones.entradas + (unidades.entradas / 8) + (trozado.entradas / 20),
+    salidas: cajones.salidas + (unidades.salidas / 8) + (trozado.salidas / 20),
+    total: cajones.total + (unidades.total / 8) + (trozado.total / 20)
+  };
+}
+
 function renderResumen(){
   actualizarOpcionesConcepto();
   const resumen = calcularResumen();
@@ -903,6 +932,14 @@ function renderResumen(){
     return;
   }
 
+  const cajasPollo = calcularCajasPollo(resumen);
+  const filaCajasPollo = `<tr class="cajas-pollo-row">
+    <td class="prod">Total en cajones</td>
+    <td class="entradas">${formatNum(cajasPollo.entradas)}</td>
+    <td class="salidas">${formatNum(cajasPollo.salidas)}</td>
+    <td class="total">${formatNum(cajasPollo.total)}</td>
+  </tr>`;
+
   mainEl.innerHTML = `
     <div class="stock-table-wrap">
       <table class="stock resumen-table">
@@ -914,7 +951,7 @@ function renderResumen(){
             <th class="total">Total</th>
           </tr>
         </thead>
-        <tbody>${filas}</tbody>
+        <tbody>${filas}${filaCajasPollo}</tbody>
       </table>
     </div>`;
 }
