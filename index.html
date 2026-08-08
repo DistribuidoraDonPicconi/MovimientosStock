@@ -229,34 +229,40 @@
   /* Pantalla de bloqueo (login con Google) */
   #lock-screen{
     position:fixed; inset:0; z-index:100;
-    background:var(--azul-osc);
+    background:var(--fondo);
     display:flex; align-items:center; justify-content:center;
     padding:24px;
   }
   #lock-screen.hidden{ display:none; }
   .lock-box{
     width:100%; max-width:320px; text-align:center;
+    background:#fff; border:1px solid var(--azul-borde);
+    border-radius:22px; padding:34px 26px 28px;
+    box-shadow:0 8px 24px rgba(22,48,92,0.1);
   }
   .lock-box .lock-logo{
-    width:64px; height:64px; border-radius:16px;
-    background:var(--azul); color:#fff; font-weight:800; font-size:22px;
-    display:flex; align-items:center; justify-content:center;
-    margin:0 auto 18px;
+    width:84px; height:84px; border-radius:20px;
+    overflow:hidden;
+    margin:0 auto 20px;
+    box-shadow:0 4px 14px rgba(22,48,92,0.22);
+  }
+  .lock-box .lock-logo img{
+    width:100%; height:100%; object-fit:cover; display:block;
   }
   .lock-box h2{
-    color:#fff; font-size:19px; margin:0 0 4px; font-weight:800;
+    color:#111624; font-size:23px; margin:0 0 6px; font-weight:800;
   }
   .lock-box p{
-    color:#a9b8d6; font-size:14px; margin:0 0 22px;
+    color:var(--azul-osc); font-size:15.5px; font-weight:600; margin:0 0 24px;
   }
   .lock-box #google-btn{
     display:flex; justify-content:center; margin-bottom:14px; min-height:44px;
   }
   .lock-box .lock-error{
-    color:#ff8a80; font-size:13px; margin-top:12px; min-height:16px;
+    color:var(--rojo); font-size:14px; font-weight:600; margin-top:14px; min-height:16px;
   }
   .lock-box .lock-loading{
-    color:#a9b8d6; font-size:13px; margin-top:4px; min-height:16px;
+    color:var(--texto-tenue); font-size:14px; margin-top:6px; min-height:16px;
   }
 
   /* Modal de confirmación (cerrar sesión) */
@@ -448,7 +454,7 @@
 
 <div id="lock-screen">
   <div class="lock-box">
-    <div class="lock-logo">DP</div>
+    <div class="lock-logo"><img src="icon-512.png" alt="Stock DP"></div>
     <h2>Acceso restringido</h2>
     <p>Iniciá sesión con tu cuenta de Google</p>
     <div id="google-btn"></div>
@@ -732,7 +738,7 @@ window.addEventListener('load', function(){
       auto_select: true
     });
     google.accounts.id.renderButton(document.getElementById('google-btn'), {
-      theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 280
+      theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 260
     });
   }
 
