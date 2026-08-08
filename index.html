@@ -285,21 +285,51 @@
     font-size:16px; outline:none; color:#1a1f2b; background:#fff;
   }
   .nuevo-body input:focus{ border-color:var(--azul); }
+
+  /* Botones de Sección */
+  .nm-seccion-grid{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
+  }
+  .nm-seccion-btn{
+    padding:12px 8px; border-radius:11px; border:1.5px solid var(--azul-borde);
+    background:#fff; color:#3a4560; font-size:14.5px; font-weight:700;
+    cursor:pointer; text-align:center;
+  }
+  .nm-seccion-btn.selected{
+    background:var(--azul); border-color:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
+  .nm-seccion-btn:active{ opacity:0.85; }
   .nuevo-productos-title{
     font-size:13px; font-weight:800; color:var(--azul-osc);
     margin:20px 0 8px; padding-top:14px; border-top:1px solid var(--linea);
   }
   .nuevo-productos-grid{
-    display:grid; grid-template-columns:1fr 1fr; gap:10px 12px;
+    display:grid; gap:10px;
+  }
+  .nuevo-productos-grid.principales{
+    grid-template-columns:1fr 1fr;
+    margin-bottom:10px;
+  }
+  .nuevo-productos-grid.resto{
+    grid-template-columns:1fr 1fr 1fr;
+  }
+  .nuevo-prod-item{
+    background:#fdfbf3; border:1px solid #ece4c8; border-radius:14px;
+    padding:12px 8px 11px; text-align:center;
+    display:flex; flex-direction:column; align-items:center;
   }
   .nuevo-prod-item label{
-    margin:0 0 5px; font-size:12.5px; font-weight:700; color:#4a5670;
+    font-size:12.5px; font-weight:800; color:#1a1f2b;
+    margin:0 0 8px; line-height:1.25;
   }
   .nuevo-prod-item input{
-    width:100%; padding:10px 11px; border-radius:10px; border:1px solid var(--azul-borde);
-    font-size:16px; outline:none; color:#1a1f2b;
+    width:100%; padding:8px 4px; border-radius:9px; border:1px solid var(--azul-borde);
+    font-size:15px; outline:none; color:var(--azul); font-weight:700;
+    text-align:center; background:#fff;
   }
   .nuevo-prod-item input:focus{ border-color:var(--azul); }
+  .nuevo-prod-item input::placeholder{ color:#b7c0d4; font-weight:500; }
   .nuevo-footer{
     display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--linea);
     flex-shrink:0; background:#fff;
@@ -357,22 +387,24 @@
     </div>
     <div class="nuevo-body">
       <label>Sección</label>
-      <input type="text" id="nm-seccion" placeholder="Ej: Ventas, Compras, Ajustes">
+      <div class="nm-seccion-grid" id="nm-seccion-grid"></div>
+      <input type="hidden" id="nm-seccion">
+	  
+	  <label>Fecha</label>
+      <input type="date" id="nm-fecha">
 
       <label>Concepto</label>
-      <input type="text" id="nm-concepto" placeholder="Ej: Venta cliente, Compra proveedor">
+      <input type="text" id="nm-concepto" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
 
       <label>Notas</label>
       <input type="text" id="nm-notas" placeholder="Opcional">
 
       <label>Usuario</label>
-      <input type="text" id="nm-usuario" placeholder="Tu nombre">
+      <input type="text" id="nm-usuario" placeholder="Tu nombre">      
 
-      <label>Fecha</label>
-      <input type="date" id="nm-fecha">
-
-      <div class="nuevo-productos-title">Cantidades (dejá vacío lo que no tuvo movimiento; usá signo − para salidas)</div>
-      <div class="nuevo-productos-grid" id="nm-productos"></div>
+      <div class="nuevo-productos-title">Productos</div>
+      <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
+      <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
     </div>
     <div class="nuevo-error" id="nuevo-error"></div>
     <div class="nuevo-footer">
@@ -703,9 +735,12 @@ searchEl.addEventListener('input', () => {
 
 /* ============== Nuevo movimiento ============== */
 const USUARIO_KEY = 'dp_stock_usuario';
+const SECCIONES = ['Compras', 'Granja', 'Repartos', 'Trozado', 'Ajustes', 'Otros'];
 const fabNuevo = document.getElementById('fab-nuevo');
 const nuevoModal = document.getElementById('nuevo-modal');
-const nmProductosWrap = document.getElementById('nm-productos');
+const nmProductosPrincipales = document.getElementById('nm-productos-principales');
+const nmProductosResto = document.getElementById('nm-productos-resto');
+const nmSeccionGrid = document.getElementById('nm-seccion-grid');
 const nmSeccion = document.getElementById('nm-seccion');
 const nmConcepto = document.getElementById('nm-concepto');
 const nmNotas = document.getElementById('nm-notas');
@@ -714,21 +749,46 @@ const nmFecha = document.getElementById('nm-fecha');
 const nuevoError = document.getElementById('nuevo-error');
 const btnGuardar = document.getElementById('nuevo-guardar');
 
-// generar un input por producto, una sola vez
-nmProductosWrap.innerHTML = CONFIG.PRODUCTOS.map((p, i) => `
-  <div class="nuevo-prod-item">
-    <label for="nm-prod-${i}">${p}</label>
-    <input type="number" step="any" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0">
-  </div>
+// generar un input por producto: los 2 primeros en la grilla grande, el resto de a 3
+function itemProductoHTML(p, i){
+  return `
+    <div class="nuevo-prod-item">
+      <label for="nm-prod-${i}">${p}</label>
+      <input type="number" step="any" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0">
+    </div>`;
+}
+nmProductosPrincipales.innerHTML = CONFIG.PRODUCTOS.slice(0, 2)
+  .map((p, i) => itemProductoHTML(p, i)).join('');
+nmProductosResto.innerHTML = CONFIG.PRODUCTOS.slice(2)
+  .map((p, i) => itemProductoHTML(p, i + 2)).join('');
+
+// generar los botones de Sección, una sola vez
+nmSeccionGrid.innerHTML = SECCIONES.map(s => `
+  <button type="button" class="nm-seccion-btn" data-seccion="${s}">${s}</button>
 `).join('');
 
+function seleccionarSeccion(valor){
+  nmSeccion.value = valor;
+  nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.seccion === valor);
+  });
+}
+
+nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // tocar de nuevo el mismo botón lo deselecciona
+    seleccionarSeccion(nmSeccion.value === btn.dataset.seccion ? '' : btn.dataset.seccion);
+  });
+});
+
 function abrirNuevoModal(){
-  nmSeccion.value = '';
+  seleccionarSeccion('');
   nmConcepto.value = '';
   nmNotas.value = '';
   nmUsuario.value = localStorage.getItem(USUARIO_KEY) || '';
   nmFecha.value = new Date().toISOString().slice(0,10);
-  nmProductosWrap.querySelectorAll('input').forEach(inp => inp.value = '');
+  nmProductosPrincipales.querySelectorAll('input').forEach(inp => inp.value = '');
+  nmProductosResto.querySelectorAll('input').forEach(inp => inp.value = '');
   nuevoError.textContent = '';
   btnGuardar.disabled = false;
   btnGuardar.textContent = 'Guardar';
@@ -756,7 +816,7 @@ btnGuardar.addEventListener('click', async () => {
 
   const productos = {};
   let hayCantidad = false;
-  nmProductosWrap.querySelectorAll('input').forEach(inp => {
+  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
     const val = inp.value.trim();
     if(val !== ''){
       productos[inp.dataset.producto] = val;
