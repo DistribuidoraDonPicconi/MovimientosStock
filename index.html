@@ -109,7 +109,7 @@
     transition:background .15s, color .15s, border-color .15s;
   }
   .resumen-rango-btn.active{
-    background:var(--azul); color:#fff; border-color:var(--azul);
+    background:#5f8fe0; color:#fff; border-color:#5f8fe0;
   }
   .resumen-personalizado{
     display:flex; gap:10px; margin-top:10px;
@@ -169,6 +169,18 @@
   table.stock td.salidas{ font-size:15px; font-weight:700; color:var(--rojo); width:78px; white-space:nowrap; }
   table.stock td.total{ font-size:16px; font-weight:800; color:#1a1f2b; width:78px; white-space:nowrap; }
   table.stock th.entradas, table.stock th.salidas, table.stock th.total{ width:78px; }
+
+  /* Tabla de Resumen: misma estructura que Stock Actual pero con fuente más
+     chica, para que entren los números de Entradas/Salidas/Total sin cortarse */
+  table.resumen-table td{ padding:7px 6px; }
+  table.resumen-table td.prod{ font-size:13.5px; }
+  table.resumen-table td.entradas,
+  table.resumen-table td.salidas,
+  table.resumen-table td.total{ font-size:13px; width:68px; }
+  table.resumen-table th{ font-size:11px; padding:7px 6px; }
+  table.resumen-table th.entradas,
+  table.resumen-table th.salidas,
+  table.resumen-table th.total{ width:68px; }
 
   /* Lista Movimientos */
   /* Tabla Movimientos */
@@ -551,7 +563,7 @@
     <div class="resumen-rango">
       <button id="rango-esta-semana" class="resumen-rango-btn active" data-rango="esta-semana">Esta semana</button>
       <button id="rango-semana-pasada" class="resumen-rango-btn" data-rango="semana-pasada">Semana pasada</button>
-      <button id="rango-personalizado" class="resumen-rango-btn" data-rango="personalizado">Personalizado</button>
+      <button id="rango-personalizado" class="resumen-rango-btn" data-rango="personalizado">Otro rango</button>
     </div>
     <div class="resumen-personalizado hidden" id="resumen-personalizado">
       <div class="resumen-fecha-campo">
@@ -567,13 +579,13 @@
       <div class="resumen-seccion-campo">
         <label for="resumen-seccion">Sección</label>
         <select id="resumen-seccion">
-          <option value="">Todas las secciones</option>
+          <option value="">Todas</option>
         </select>
       </div>
       <div class="resumen-seccion-campo">
         <label for="resumen-concepto">Concepto</label>
         <select id="resumen-concepto">
-          <option value="">Todos los conceptos</option>
+          <option value="">Todos</option>
         </select>
       </div>
     </div>
@@ -799,6 +811,14 @@ function obtenerRangoResumen(){
   return { desde, hasta };
 }
 
+const VENTA_TOTAL_VALUE = '__venta_total__';
+
+function seccionCoincide(mov, seccionFiltro){
+  if(!seccionFiltro) return true;
+  if(seccionFiltro === VENTA_TOTAL_VALUE) return mov['Sección'] === 'Repartos' || mov['Sección'] === 'Granja';
+  return mov['Sección'] === seccionFiltro;
+}
+
 function actualizarOpcionesConcepto(){
   const { desde, hasta } = obtenerRangoResumen();
   const seccion = resumenSeccionEl.value;
@@ -809,7 +829,7 @@ function actualizarOpcionesConcepto(){
     movimientos.forEach(mov => {
       const f = new Date(mov[CONFIG.CAMPO_FECHA]);
       if(isNaN(f) || f < desde || f > hasta) return;
-      if(seccion && mov['Sección'] !== seccion) return;
+      if(!seccionCoincide(mov, seccion)) return;
       const concepto = (mov['Concepto'] || '').trim();
       if(concepto) conceptos.add(concepto);
     });
@@ -818,7 +838,7 @@ function actualizarOpcionesConcepto(){
   const listaOrdenada = [...conceptos].sort((a,b) => a.localeCompare(b, 'es'));
   const mantieneSeleccion = listaOrdenada.includes(seleccionPrevia);
 
-  resumenConceptoEl.innerHTML = `<option value="">Todos los conceptos</option>`
+  resumenConceptoEl.innerHTML = `<option value="">Todos</option>`
     + listaOrdenada.map(c => `<option value="${c}">${c}</option>`).join('');
   resumenConceptoEl.value = mantieneSeleccion ? seleccionPrevia : '';
 }
@@ -836,7 +856,7 @@ function calcularResumen(){
   movimientos.forEach(mov => {
     const f = new Date(mov[CONFIG.CAMPO_FECHA]);
     if(isNaN(f) || f < desde || f > hasta) return;
-    if(seccion && mov['Sección'] !== seccion) return;
+    if(!seccionCoincide(mov, seccion)) return;
     if(concepto && (mov['Concepto'] || '').trim() !== concepto) return;
 
     CONFIG.PRODUCTOS.forEach(p => {
@@ -885,7 +905,7 @@ function renderResumen(){
 
   mainEl.innerHTML = `
     <div class="stock-table-wrap">
-      <table class="stock">
+      <table class="stock resumen-table">
         <thead>
           <tr>
             <th class="prod">Producto</th>
@@ -1064,7 +1084,8 @@ searchEl.addEventListener('input', () => {
 /* ============== Nuevo movimiento ============== */
 const USUARIO_KEY = 'dp_stock_usuario';
 const SECCIONES = ['Compras', 'Granja', 'Repartos', 'Trozado', 'Ajustes', 'Otros'];
-resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('');
+resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
+  + `<option value="${VENTA_TOTAL_VALUE}">Venta total</option>`;
 const fabNuevo = document.getElementById('fab-nuevo');
 const fabAcciones = document.getElementById('fab-acciones');
 const fabEditar = document.getElementById('fab-editar');
