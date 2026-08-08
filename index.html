@@ -387,6 +387,10 @@
     font-size:16px; outline:none; color:#1a1f2b; background:#fff;
   }
   .nuevo-body input:focus{ border-color:var(--azul); }
+  .nuevo-body input[readonly]{
+    background:var(--azul-suave); color:var(--texto-tenue); cursor:default;
+  }
+  .nuevo-body input[readonly]:focus{ border-color:var(--azul-borde); }
 
   /* Botones de Sección */
   .nm-seccion-grid{
@@ -530,7 +534,7 @@
       <input type="text" id="nm-notas" placeholder="Opcional">
 
       <label>Usuario</label>
-      <input type="text" id="nm-usuario" placeholder="Tu nombre">      
+      <input type="text" id="nm-usuario" readonly>      
 
       <div class="nuevo-productos-title">Productos</div>
       <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
@@ -621,6 +625,16 @@ const CONFIG = {
   // Client ID de OAuth de Google (tiene que ser el mismo que en Código.gs)
   GOOGLE_CLIENT_ID: '922655936984-eb35rn1hu1855l6b4939qvvl286h7l10.apps.googleusercontent.com',
 
+  // Rol de cada persona permitida (tiene que coincidir con el ROLES de Código.gs).
+  // 'admin': accede a todo (agregar, copiar, editar, eliminar).
+  // 'colaborador': solo puede agregar movimientos nuevos.
+  // 'sin_permisos': solo puede ver, ningún botón de acción.
+  ROLES: {
+    'nicolaspicconi@gmail.com': 'admin',
+    'santinopicconi@gmail.com': 'colaborador',
+    'alejandropicconi@gmail.com': 'sin_permisos'
+  },
+
   // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
   CAMPO_FECHA: 'Fecha',
 
@@ -675,6 +689,15 @@ const lockScreen = document.getElementById('lock-screen');
 const lockError = document.getElementById('lock-error');
 const lockLoading = document.getElementById('lock-loading');
 let idToken = null;
+let rolActual = null;
+let emailActual = '';
+
+function puedeAgregar(){
+  return rolActual === 'admin' || rolActual === 'colaborador';
+}
+function esAdmin(){
+  return rolActual === 'admin';
+}
 
 // Decodifica el JWT del login de Google solo para leer el email
 // (el chequeo real de validez se hace en el Apps Script).
@@ -693,9 +716,11 @@ function decodificarJwt(token){
 
 function mostrarPantallaLogin(mensajeError){
   idToken = null;
+  rolActual = null;
+  emailActual = '';
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ID_TOKEN_EXP_KEY);
-  lockError.textContent = mensajeError || '';
+  lockError.innerHTML = mensajeError || '';
   lockLoading.textContent = '';
   lockScreen.classList.remove('hidden');
   if(window.google && google.accounts && google.accounts.id){
@@ -710,6 +735,8 @@ function handleCredentialResponse(response){
     return;
   }
   idToken = response.credential;
+  rolActual = CONFIG.ROLES[String(payload.email || '').toLowerCase()] || 'sin_permisos';
+  emailActual = String(payload.email || '');
   localStorage.setItem(ID_TOKEN_KEY, idToken);
   localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
   lockError.textContent = '';
@@ -746,7 +773,10 @@ window.addEventListener('load', function(){
   const expGuardado = Number(localStorage.getItem(ID_TOKEN_EXP_KEY) || 0);
 
   if(tokenGuardado && expGuardado > Date.now()){
+    const payloadGuardado = decodificarJwt(tokenGuardado);
     idToken = tokenGuardado;
+    rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || 'sin_permisos';
+    emailActual = String((payloadGuardado && payloadGuardado.email) || '');
     lockScreen.classList.add('hidden');
     cargarDatos();
   }else if(window.google && google.accounts && google.accounts.id){
@@ -761,7 +791,17 @@ window.addEventListener('load', function(){
 // válido o que el email no está en la lista permitida.
 function esRespuestaNoAutorizada(data){
   if(data && data.auth === true){
-    mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció. <br> Prueba iniciar sesión nuevamente.');
+    mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció.<br>Probá iniciar sesión nuevamente.');
+    return true;
+  }
+  return false;
+}
+
+// A diferencia de esRespuestaNoAutorizada (token inválido/vencido), esto es
+// para cuando el login es válido pero el rol no permite esa acción puntual.
+function esRespuestaSinPermiso(data){
+  if(data && data.sinPermiso === true){
+    alert('Tu usuario no tiene permiso para hacer esto.');
     return true;
   }
   return false;
@@ -1019,7 +1059,10 @@ function renderResumen(){
 }
 
 function renderMovimientos(filtro){
-  const ordenados = [...movimientos].sort((a,b) => new Date(a[CONFIG.CAMPO_FECHA]) - new Date(b[CONFIG.CAMPO_FECHA]));
+  // Se muestran en el mismo orden en que están en la planilla (orden de carga),
+  // sin reordenar por Fecha. Así, si alguien carga mal la fecha, el error se
+  // nota porque el movimiento aparece fuera de lugar en vez de quedar oculto.
+  const ordenados = movimientos;
 
   // columnas de producto a mostrar: si el filtro coincide con algún nombre de
   // producto, mostramos solo esas; si no coincide con ninguno (porque busca por
@@ -1149,7 +1192,7 @@ function setTab(tab){
   document.getElementById('tab-stock').classList.toggle('active', tab === 'stock');
   document.getElementById('tab-mov').classList.toggle('active', tab === 'movimientos');
   document.getElementById('tab-resumen').classList.toggle('active', tab === 'resumen');
-  fabNuevo.classList.toggle('hidden', tab !== 'movimientos');
+  fabNuevo.classList.toggle('hidden', tab !== 'movimientos' || !puedeAgregar());
   deseleccionarFila();
   render();
 }
@@ -1181,7 +1224,6 @@ searchEl.addEventListener('input', () => {
 });
 
 /* ============== Nuevo movimiento ============== */
-const USUARIO_KEY = 'dp_stock_usuario';
 const SECCIONES = ['Compras', 'Granja', 'Repartos', 'Trozado', 'Ajustes', 'Otros'];
 resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
   + `<option value="${VENTA_TOTAL_VALUE}">Venta total</option>`;
@@ -1200,7 +1242,7 @@ function actualizarSeleccionUI(){
     if(esta) encontrada = true;
   });
   if(filaSeleccionadaId && !encontrada) filaSeleccionadaId = null;
-  fabAcciones.classList.toggle('hidden', !filaSeleccionadaId || currentTab !== 'movimientos');
+  fabAcciones.classList.toggle('hidden', !filaSeleccionadaId || currentTab !== 'movimientos' || !esAdmin());
 }
 
 function deseleccionarFila(){
@@ -1248,6 +1290,11 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
     const data = await resp.json();
     if(data && data.error){
       if(esRespuestaNoAutorizada(data)){
+        confirmEliminarModal.classList.add('hidden');
+        idAEliminar = null;
+        return;
+      }
+      if(esRespuestaSinPermiso(data)){
         confirmEliminarModal.classList.add('hidden');
         idAEliminar = null;
         return;
@@ -1365,7 +1412,7 @@ function abrirNuevoModal(mov, modoEditar){
   seleccionarSeccion(precargar ? (mov['Sección'] || '') : '');
   nmConcepto.value = precargar ? (mov['Concepto'] || '') : '';
   nmNotas.value = precargar ? (mov['Notas'] || '') : '';
-  nmUsuario.value = precargar ? (mov['Usuario'] || '') : (localStorage.getItem(USUARIO_KEY) || '');
+  nmUsuario.value = emailActual;
   nmFecha.value = precargar && mov[CONFIG.CAMPO_FECHA]
     ? new Date(mov[CONFIG.CAMPO_FECHA]).toISOString().slice(0,10)
     : new Date().toISOString().slice(0,10);
@@ -1416,7 +1463,6 @@ btnGuardar.addEventListener('click', async () => {
   }
 
   const usuario = nmUsuario.value.trim();
-  if(usuario) localStorage.setItem(USUARIO_KEY, usuario);
 
   const payload = {
     seccion, concepto,
@@ -1439,6 +1485,10 @@ btnGuardar.addEventListener('click', async () => {
     const data = await resp.json();
     if(data && data.error){
       if(esRespuestaNoAutorizada(data)){
+        cerrarNuevoModal();
+        return;
+      }
+      if(esRespuestaSinPermiso(data)){
         cerrarNuevoModal();
         return;
       }
