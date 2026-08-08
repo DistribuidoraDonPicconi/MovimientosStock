@@ -155,6 +155,8 @@
   table.stock tr:nth-child(even){ background:#fafbfd; }
   table.stock td.prod{ font-size:16px; font-weight:700; color:#1a1f2b; }
   table.stock td.stock{ font-size:16px; font-weight:800; color:#1a1f2b; width:92px; white-space:nowrap; }
+  table.stock td.stock.pos{ color:#1a1f2b; }
+  table.stock td.stock.neg{ color:var(--rojo); }
   table.stock td.fecha{ font-size:13.5px; font-weight:600; color:var(--azul-osc); width:80px; white-space:nowrap; }
   table.stock th{
     text-align:center; font-size:12.5px; font-weight:800; color:var(--texto-tenue);
@@ -656,7 +658,12 @@ function formatFecha(valor){
 }
 
 function formatNum(n){
-  return Number(n || 0).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const num = Number(n || 0);
+  const esEntero = Math.round((num + Number.EPSILON) * 100) / 100 % 1 === 0;
+  return num.toLocaleString('es-AR', {
+    minimumFractionDigits: esEntero ? 0 : 2,
+    maximumFractionDigits: 2
+  });
 }
 
 /* ============== Bloqueo con PIN ============== */
@@ -756,9 +763,11 @@ function renderStock(filtro){
     .filter(p => Math.round((stock[p].total + Number.EPSILON) * 100) / 100 !== 0)
     .map(p => {
       const s = stock[p];
+      const total = Math.round((s.total + Number.EPSILON) * 100) / 100;
+      const claseSigno = total < 0 ? 'neg' : 'pos';
       return `<tr>
         <td class="prod">${p}</td>
-        <td class="stock">${formatNum(s.total)}</td>
+        <td class="stock ${claseSigno}">${formatNum(s.total)}</td>
         <td class="fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</td>
       </tr>`;
     }).join('');
@@ -1302,13 +1311,14 @@ function abrirNuevoModal(mov, modoEditar){
     : new Date().toISOString().slice(0,10);
 
   document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
-    inp.value = precargar ? numeroAInputStr(mov[inp.dataset.producto]) : '';
+    inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
   });
 
   nuevoError.textContent = '';
   btnGuardar.disabled = false;
   btnGuardar.textContent = modoEditar ? 'Guardar cambios' : (precargar ? 'Guardar copia' : 'Guardar');
   nuevoModal.classList.remove('hidden');
+  document.querySelector('.nuevo-body').scrollTop = 0;
 }
 
 function cerrarNuevoModal(){
