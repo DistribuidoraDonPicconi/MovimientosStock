@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="Stock DP">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <style>
   :root{
@@ -225,7 +226,7 @@
   table.mov tbody tr.mov-row.selected td{ background:var(--azul-suave); }
   table.mov tbody tr.mov-row.selected td.fecha{ color:var(--azul-osc); }
 
-  /* Pantalla de bloqueo (PIN) */
+  /* Pantalla de bloqueo (login con Google) */
   #lock-screen{
     position:fixed; inset:0; z-index:100;
     background:var(--azul-osc);
@@ -248,19 +249,14 @@
   .lock-box p{
     color:#a9b8d6; font-size:14px; margin:0 0 22px;
   }
-  .lock-box input{
-    width:100%; padding:14px 16px; border-radius:12px; border:none;
-    font-size:20px; text-align:center; letter-spacing:4px;
-    outline:none; margin-bottom:14px;
+  .lock-box #google-btn{
+    display:flex; justify-content:center; margin-bottom:14px; min-height:44px;
   }
-  .lock-box button{
-    width:100%; padding:13px; border-radius:12px; border:none;
-    background:#fff; color:var(--azul-osc); font-weight:800; font-size:16px;
-    cursor:pointer;
-  }
-  .lock-box button:active{ opacity:0.85; }
   .lock-box .lock-error{
     color:#ff8a80; font-size:13px; margin-top:12px; min-height:16px;
+  }
+  .lock-box .lock-loading{
+    color:#a9b8d6; font-size:13px; margin-top:4px; min-height:16px;
   }
 
   /* Modal de confirmación (cerrar sesión) */
@@ -454,9 +450,9 @@
   <div class="lock-box">
     <div class="lock-logo">DP</div>
     <h2>Acceso restringido</h2>
-    <p>Ingresá el PIN para entrar</p>
-    <input type="password" id="lock-input" inputmode="numeric" placeholder="••••" autocomplete="off">
-    <button id="lock-btn">Ingresar</button>
+    <p>Iniciá sesión con tu cuenta de Google</p>
+    <div id="google-btn"></div>
+    <div class="lock-loading" id="lock-loading"></div>
     <div class="lock-error" id="lock-error"></div>
   </div>
 </div>
@@ -467,7 +463,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     </div>
     <h3>Cerrar sesión</h3>
-    <p>Vas a tener que ingresar el PIN de nuevo para volver a entrar en este celular.</p>
+    <p>Vas a tener que iniciar sesión con Google de nuevo para volver a entrar en este celular.</p>
     <div class="confirm-actions">
       <button class="btn-cancelar" id="confirm-cancelar">Cancelar</button>
       <button class="btn-confirmar" id="confirm-aceptar">Cerrar sesión</button>
@@ -616,8 +612,8 @@ const CONFIG = {
   // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxV-3ozAFkPJ5WvutB-lpZDOQe-tFmDAmjzqSACmgeAzm4tIclFBOgN72zhooPha_LDeQ/exec',
 
-  // PIN/clave para entrar a la app. Cambialo por el que quieras usar.
-  PIN: '4508',
+  // Client ID de OAuth de Google (tiene que ser el mismo que en Código.gs)
+  GOOGLE_CLIENT_ID: '922655936984-eb35rn1hu1855l6b4939qvvl286h7l10.apps.googleusercontent.com',
 
   // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
   CAMPO_FECHA: 'Fecha',
@@ -666,29 +662,54 @@ function formatNum(n){
   });
 }
 
-/* ============== Bloqueo con PIN ============== */
-const AUTH_KEY = 'dp_stock_auth_ok';
+/* ============== Login con Google ============== */
+const ID_TOKEN_KEY = 'dp_stock_id_token';
+const ID_TOKEN_EXP_KEY = 'dp_stock_id_token_exp';
 const lockScreen = document.getElementById('lock-screen');
-const lockInput = document.getElementById('lock-input');
-const lockBtn = document.getElementById('lock-btn');
 const lockError = document.getElementById('lock-error');
+const lockLoading = document.getElementById('lock-loading');
+let idToken = null;
 
-function intentarDesbloquear(){
-  if(lockInput.value === CONFIG.PIN){
-    localStorage.setItem(AUTH_KEY, 'ok');
-    lockScreen.classList.add('hidden');
-    cargarDatos();
-  }else{
-    lockError.textContent = 'PIN incorrecto';
-    lockInput.value = '';
-    lockInput.focus();
+// Decodifica el JWT del login de Google solo para leer el email
+// (el chequeo real de validez se hace en el Apps Script).
+function decodificarJwt(token){
+  try{
+    const payload = token.split('.')[1];
+    const json = decodeURIComponent(
+      atob(payload.replace(/-/g,'+').replace(/_/g,'/'))
+        .split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    return JSON.parse(json);
+  }catch(err){
+    return null;
   }
 }
 
-lockBtn.addEventListener('click', intentarDesbloquear);
-lockInput.addEventListener('keydown', (e) => {
-  if(e.key === 'Enter') intentarDesbloquear();
-});
+function mostrarPantallaLogin(mensajeError){
+  idToken = null;
+  localStorage.removeItem(ID_TOKEN_KEY);
+  localStorage.removeItem(ID_TOKEN_EXP_KEY);
+  lockError.textContent = mensajeError || '';
+  lockLoading.textContent = '';
+  lockScreen.classList.remove('hidden');
+  if(window.google && google.accounts && google.accounts.id){
+    google.accounts.id.disableAutoSelect();
+  }
+}
+
+function handleCredentialResponse(response){
+  const payload = decodificarJwt(response.credential);
+  if(!payload){
+    mostrarPantallaLogin('No se pudo procesar el inicio de sesión.');
+    return;
+  }
+  idToken = response.credential;
+  localStorage.setItem(ID_TOKEN_KEY, idToken);
+  localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
+  lockError.textContent = '';
+  lockScreen.classList.add('hidden');
+  cargarDatos();
+}
 
 document.getElementById('btn-logout').addEventListener('click', () => {
   document.getElementById('confirm-modal').classList.remove('hidden');
@@ -700,31 +721,57 @@ document.getElementById('confirm-cancelar').addEventListener('click', () => {
 
 document.getElementById('confirm-aceptar').addEventListener('click', () => {
   document.getElementById('confirm-modal').classList.add('hidden');
-  localStorage.removeItem(AUTH_KEY);
-  lockInput.value = '';
-  lockError.textContent = '';
-  lockScreen.classList.remove('hidden');
-  lockInput.focus();
+  mostrarPantallaLogin('');
 });
 
 window.addEventListener('load', function(){
-  if(localStorage.getItem(AUTH_KEY) === 'ok'){
+  if(window.google && google.accounts && google.accounts.id){
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: true
+    });
+    google.accounts.id.renderButton(document.getElementById('google-btn'), {
+      theme: 'filled_blue', size: 'large', text: 'signin_with', shape: 'pill', width: 280
+    });
+  }
+
+  const tokenGuardado = localStorage.getItem(ID_TOKEN_KEY);
+  const expGuardado = Number(localStorage.getItem(ID_TOKEN_EXP_KEY) || 0);
+
+  if(tokenGuardado && expGuardado > Date.now()){
+    idToken = tokenGuardado;
     lockScreen.classList.add('hidden');
     cargarDatos();
-  }else{
-    lockInput.focus();
+  }else if(window.google && google.accounts && google.accounts.id){
+    lockLoading.textContent = 'Buscando sesión de Google...';
+    google.accounts.id.prompt((notif) => {
+      lockLoading.textContent = '';
+    });
   }
 });
+
+// Maneja una respuesta del Apps Script que indica que el token no es
+// válido o que el email no está en la lista permitida.
+function esRespuestaNoAutorizada(data){
+  if(data && data.auth === true){
+    mostrarPantallaLogin('Esta cuenta de Google no tiene acceso a la app, o la sesión venció. Iniciá sesión de nuevo.');
+    return true;
+  }
+  return false;
+}
 /* =============================================== */
 
 async function cargarDatos(){
   btnRefresh.classList.add('spinning');
   try{
-    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {cache:'no-store'});
+    const url = CONFIG.APPS_SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken || '');
+    const resp = await fetch(url, {cache:'no-store'});
     if(!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if(data && data.error){
       movimientos = [];
+      if(esRespuestaNoAutorizada(data)) return;
       mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos: ${data.error}</div>`;
       return;
     }
@@ -1190,10 +1237,17 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
   try{
     const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify({ accion: 'eliminar', id: idBorrar })
+      body: JSON.stringify({ accion: 'eliminar', id: idBorrar, idToken: idToken || '' })
     });
     const data = await resp.json();
-    if(data && data.error) throw new Error(data.error);
+    if(data && data.error){
+      if(esRespuestaNoAutorizada(data)){
+        confirmEliminarModal.classList.add('hidden');
+        idAEliminar = null;
+        return;
+      }
+      throw new Error(data.error);
+    }
 
     confirmEliminarModal.classList.add('hidden');
     idAEliminar = null;
@@ -1366,6 +1420,7 @@ btnGuardar.addEventListener('click', async () => {
     productos
   };
   if(nmEditId.value) payload.id = nmEditId.value;
+  payload.idToken = idToken || '';
 
   btnGuardar.disabled = true;
   btnGuardar.textContent = 'Guardando...';
@@ -1376,7 +1431,13 @@ btnGuardar.addEventListener('click', async () => {
       body: JSON.stringify(payload)
     });
     const data = await resp.json();
-    if(data && data.error) throw new Error(data.error);
+    if(data && data.error){
+      if(esRespuestaNoAutorizada(data)){
+        cerrarNuevoModal();
+        return;
+      }
+      throw new Error(data.error);
+    }
 
     cerrarNuevoModal();
     await cargarDatos();
