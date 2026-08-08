@@ -28,6 +28,16 @@
     --verde: #1f8a4c;
     --rojo: #c0392b;
     --texto-tenue: #7c8aa3;
+    --app-max-width: 520px;
+  }
+  /* En pantallas grandes (PC), mientras se está viendo la pestaña
+     Movimientos, se agranda el contenedor para aprovechar el ancho
+     disponible. En celular (pantallas angostas) no aplica, así que
+     queda todo igual que antes. */
+  @media (min-width:900px){
+    body:has(main.grid-mode){
+      --app-max-width: min(1400px, 95vw);
+    }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   html,body{
@@ -39,8 +49,9 @@
   #app{
     display:flex; flex-direction:column;
     height:100vh; height:100dvh;
-    max-width:520px; margin:0 auto;
+    max-width:var(--app-max-width); margin:0 auto;
     background:var(--fondo);
+    transition:max-width .2s ease;
   }
 
   /* Header */
@@ -319,7 +330,7 @@
   /* Botón flotante (+) para nuevo movimiento */
   .fab{
     position:fixed; bottom:28px;
-    right:max(22px, calc((100vw - 520px) / 2 + 22px));
+    right:max(22px, calc((100vw - var(--app-max-width)) / 2 + 22px));
     width:56px; height:56px; border-radius:50%;
     background:var(--azul); color:#fff; border:none;
     display:flex; align-items:center; justify-content:center;
@@ -332,7 +343,7 @@
   /* Botones flotantes "Copiar" y "Editar", aparecen arriba del + al seleccionar una fila */
   .fab-acciones{
     position:fixed; bottom:96px;
-    right:max(22px, calc((100vw - 520px) / 2 + 22px));
+    right:max(22px, calc((100vw - var(--app-max-width)) / 2 + 22px));
     display:flex; flex-direction:column; gap:12px; z-index:50;
   }
   .fab-acciones.hidden{ display:none; }
