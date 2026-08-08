@@ -124,6 +124,14 @@
   table.stock td.prod{ font-size:16px; font-weight:700; color:#1a1f2b; }
   table.stock td.stock{ font-size:16px; font-weight:800; color:#1a1f2b; text-align:center; width:92px; white-space:nowrap; }
   table.stock td.fecha{ font-size:13.5px; font-weight:600; color:var(--azul-osc); text-align:center; width:80px; white-space:nowrap; }
+  table.stock th{
+    text-align:left; font-size:12.5px; font-weight:800; color:var(--texto-tenue);
+    text-transform:uppercase; letter-spacing:0.3px;
+    padding:9px 12px; border-bottom:1.5px solid var(--linea);
+    background:#fafbfd;
+  }
+  table.stock th.stock{ text-align:center; width:92px; }
+  table.stock th.fecha{ text-align:center; width:80px; }
 
   /* Lista Movimientos */
   /* Tabla Movimientos */
@@ -605,6 +613,13 @@ function renderStock(filtro){
   mainEl.innerHTML = `
     <div class="stock-table-wrap">
       <table class="stock">
+        <thead>
+          <tr>
+            <th class="prod">Producto</th>
+            <th class="stock">Cantidad</th>
+            <th class="fecha">Fecha</th>
+          </tr>
+        </thead>
         <tbody>${filas}</tbody>
       </table>
     </div>`;
