@@ -754,13 +754,50 @@ function itemProductoHTML(p, i){
   return `
     <div class="nuevo-prod-item">
       <label for="nm-prod-${i}">${p}</label>
-      <input type="number" step="any" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0">
+      <input type="text" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0" class="nm-prod-input">
     </div>`;
 }
 nmProductosPrincipales.innerHTML = CONFIG.PRODUCTOS.slice(0, 2)
   .map((p, i) => itemProductoHTML(p, i)).join('');
 nmProductosResto.innerHTML = CONFIG.PRODUCTOS.slice(2)
   .map((p, i) => itemProductoHTML(p, i + 2)).join('');
+
+// Formateo en vivo de los campos de cantidad: separador de miles dinámico,
+// coma como separador decimal, y máximo 4 dígitos en la parte entera.
+function formatearCantidad(valorCrudo){
+  const negativo = valorCrudo.trim().startsWith('-');
+
+  // dejar solo dígitos y comas
+  let limpio = valorCrudo.replace(/[^0-9,]/g, '');
+
+  // quedarnos solo con la primera coma (separador decimal)
+  const idxComa = limpio.indexOf(',');
+  let entero = idxComa === -1 ? limpio : limpio.slice(0, idxComa);
+  let decimal = idxComa === -1 ? null : limpio.slice(idxComa + 1).replace(/,/g, '');
+
+  // máximo 4 dígitos en la parte entera (sin contar la parte decimal)
+  entero = entero.slice(0, 4);
+
+  // separador de miles dinámico (punto)
+  const enteroConPuntos = entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  let resultado = (negativo ? '-' : '') + enteroConPuntos;
+  if(decimal !== null) resultado += ',' + decimal;
+
+  return resultado;
+}
+
+document.querySelectorAll('.nm-prod-input').forEach(inp => {
+  inp.addEventListener('input', () => {
+    inp.value = formatearCantidad(inp.value);
+  });
+});
+
+// Antes de enviar: quita los puntos de miles y deja el número limpio
+// (la coma decimal se convierte a punto del lado del Apps Script).
+function limpiarCantidadParaEnvio(valorFormateado){
+  return valorFormateado.replace(/\./g, '');
+}
 
 // generar los botones de Sección, una sola vez
 nmSeccionGrid.innerHTML = SECCIONES.map(s => `
@@ -819,7 +856,7 @@ btnGuardar.addEventListener('click', async () => {
   document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
     const val = inp.value.trim();
     if(val !== ''){
-      productos[inp.dataset.producto] = val;
+      productos[inp.dataset.producto] = limpiarCantidadParaEnvio(val);
       hayCantidad = true;
     }
   });
