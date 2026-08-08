@@ -117,21 +117,24 @@
   }
   table.stock{ border-collapse:collapse; width:100%; }
   table.stock td{
-    padding:9px 12px; border-bottom:1px solid var(--linea); vertical-align:middle;
+    padding:9px 12px; border-bottom:1px solid var(--linea); border-right:1px solid var(--linea);
+    vertical-align:middle; text-align:center;
   }
+  table.stock td:last-child{ border-right:none; }
   table.stock tr:last-child td{ border-bottom:none; }
   table.stock tr:nth-child(even){ background:#fafbfd; }
   table.stock td.prod{ font-size:16px; font-weight:700; color:#1a1f2b; }
-  table.stock td.stock{ font-size:16px; font-weight:800; color:#1a1f2b; text-align:center; width:92px; white-space:nowrap; }
-  table.stock td.fecha{ font-size:13.5px; font-weight:600; color:var(--azul-osc); text-align:center; width:80px; white-space:nowrap; }
+  table.stock td.stock{ font-size:16px; font-weight:800; color:#1a1f2b; width:92px; white-space:nowrap; }
+  table.stock td.fecha{ font-size:13.5px; font-weight:600; color:var(--azul-osc); width:80px; white-space:nowrap; }
   table.stock th{
-    text-align:left; font-size:12.5px; font-weight:800; color:var(--texto-tenue);
+    text-align:center; font-size:12.5px; font-weight:800; color:var(--texto-tenue);
     text-transform:uppercase; letter-spacing:0.3px;
-    padding:9px 12px; border-bottom:1.5px solid var(--linea);
+    padding:9px 12px; border-bottom:1.5px solid var(--linea); border-right:1px solid var(--linea);
     background:#fafbfd;
   }
-  table.stock th.stock{ text-align:center; width:92px; }
-  table.stock th.fecha{ text-align:center; width:80px; }
+  table.stock th:last-child{ border-right:none; }
+  table.stock th.stock{ width:92px; }
+  table.stock th.fecha{ width:80px; }
 
   /* Lista Movimientos */
   /* Tabla Movimientos */
@@ -145,16 +148,20 @@
   table.mov{ border-collapse:separate; border-spacing:0; width:100%; min-width:800px; }
   table.mov th{
     position:sticky; top:0; background:#fff; z-index:1;
-    text-align:left; font-size:16px; color:#1a1f2b; font-weight:800;
+    text-align:center; font-size:16px; color:#1a1f2b; font-weight:800;
     padding:14px 18px; border-bottom:2px solid var(--azul); white-space:nowrap;
+    border-right:1px solid var(--linea);
     box-shadow:0 2px 4px rgba(22,48,92,0.15);
   }
+  table.mov th:last-child{ border-right:none; }
   table.mov td{
-    padding:14px 18px; font-size:16.5px; white-space:nowrap;
-    border-bottom:1px solid var(--linea); color:#1a1f2b;
+    padding:14px 18px; font-size:16.5px; white-space:nowrap; text-align:center;
+    border-bottom:1px solid var(--linea); border-right:1px solid var(--linea);
+    color:#1a1f2b;
   }
+  table.mov td:last-child{ border-right:none; }
   table.mov td.fecha{ color:var(--azul); font-weight:700; }
-  table.mov td.num{ text-align:right; font-weight:700; }
+  table.mov td.num{ text-align:center; font-weight:700; }
   table.mov td.num.pos{ color:var(--verde); }
   table.mov td.num.neg{ color:var(--rojo); }
   table.mov td.num.zero{ color:#c3cad9; font-weight:500; }
@@ -628,10 +635,13 @@ function renderStock(filtro){
 function renderMovimientos(filtro){
   const ordenados = [...movimientos].sort((a,b) => new Date(a[CONFIG.CAMPO_FECHA]) - new Date(b[CONFIG.CAMPO_FECHA]));
 
-  // columnas de producto a mostrar: si hay filtro, solo las que matchean; si no, todas
-  const productosVisibles = CONFIG.PRODUCTOS.filter(p =>
-    !filtro || p.toLowerCase().includes(filtro.toLowerCase())
-  );
+  // columnas de producto a mostrar: si el filtro coincide con algún nombre de
+  // producto, mostramos solo esas; si no coincide con ninguno (porque busca por
+  // sección, concepto, notas o usuario), mostramos todas las columnas igual.
+  const productosCoincidentes = filtro
+    ? CONFIG.PRODUCTOS.filter(p => p.toLowerCase().includes(filtro.toLowerCase()))
+    : [];
+  const productosVisibles = productosCoincidentes.length > 0 ? productosCoincidentes : CONFIG.PRODUCTOS;
 
   const filas = ordenados
     .filter(mov => {
