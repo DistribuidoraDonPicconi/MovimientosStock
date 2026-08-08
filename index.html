@@ -30,13 +30,17 @@
     --texto-tenue: #7c8aa3;
     --app-max-width: 520px;
   }
-  /* En pantallas grandes (PC), mientras se está viendo la pestaña
-     Movimientos, se agranda el contenedor para aprovechar el ancho
-     disponible. Las demás pestañas (Stock Actual, Resumen) mantienen
-     su tamaño de siempre. En celular no aplica nada de esto. */
+  /* En pantallas grandes (PC), la pestaña Movimientos estira SOLO la
+     tabla (no el header, ni las pestañas, ni el buscador) para
+     aprovechar el ancho de pantalla. El resto de la app mantiene
+     siempre su tamaño original de 520px. En celular no aplica nada
+     de esto. */
   @media (min-width:900px){
-    body:has(main.grid-mode){
-      --app-max-width: min(1800px, 96vw);
+    main.grid-mode{
+      position:relative;
+      left:50%;
+      width:min(1800px, 96vw);
+      transform:translateX(-50%);
     }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
