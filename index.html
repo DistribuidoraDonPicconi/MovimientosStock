@@ -761,7 +761,7 @@ window.addEventListener('load', function(){
 // válido o que el email no está en la lista permitida.
 function esRespuestaNoAutorizada(data){
   if(data && data.auth === true){
-    mostrarPantallaLogin('Esta cuenta de Google no tiene acceso a la app, o la sesión venció. Iniciá sesión de nuevo.');
+    mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció. <br> Prueba iniciar sesión nuevamente.');
     return true;
   }
   return false;
