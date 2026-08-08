@@ -30,13 +30,13 @@
     --texto-tenue: #7c8aa3;
     --app-max-width: 520px;
   }
-  /* En pantallas grandes (PC), mientras se está viendo la pestaña
-     Movimientos, se agranda el contenedor para aprovechar el ancho
-     disponible. En celular (pantallas angostas) no aplica, así que
-     queda todo igual que antes. */
+  /* En pantallas grandes (PC) se agranda el contenedor en todas las
+     pestañas por igual, para que no haya un salto de tamaño al
+     cambiar de pestaña. En celular (pantallas angostas) no aplica,
+     así que queda todo igual que antes. */
   @media (min-width:900px){
-    body:has(main.grid-mode){
-      --app-max-width: min(1400px, 95vw);
+    :root{
+      --app-max-width: min(1700px, 96vw);
     }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
