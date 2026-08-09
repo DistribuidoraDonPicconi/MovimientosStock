@@ -688,6 +688,17 @@ function formatFecha(valor){
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+// Arma un string YYYY-MM-DD a partir de la fecha LOCAL (no UTC), para usar
+// como value de un <input type="date">. Usar .toISOString() acá está mal:
+// convierte a UTC y en Argentina (UTC-3) hace que después de las 21hs
+// aparezca el día siguiente.
+function fechaLocalInput(d){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function formatNum(n){
   const num = Number(n || 0);
   const esEntero = Math.round((num + Number.EPSILON) * 100) / 100 % 1 === 0;
@@ -1429,8 +1440,8 @@ function abrirNuevoModal(mov, modoEditar){
   nmNotas.value = precargar ? (mov['Notas'] || '') : '';
   nmUsuario.value = emailActual;
   nmFecha.value = precargar && mov[CONFIG.CAMPO_FECHA]
-    ? new Date(mov[CONFIG.CAMPO_FECHA]).toISOString().slice(0,10)
-    : new Date().toISOString().slice(0,10);
+    ? fechaLocalInput(new Date(mov[CONFIG.CAMPO_FECHA]))
+    : fechaLocalInput(new Date());
 
   document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
     inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
