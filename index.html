@@ -847,6 +847,7 @@ async function cargarDatos(){
       return;
     }
     movimientos = data;
+    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
     render();
   }catch(err){
     mainEl.innerHTML = `<div class="state-msg error">No se pudo cargar el Google Sheet.<br>${err.message}<br><br>Revisá que CONFIG.APPS_SCRIPT_URL esté bien configurada.</div>`;
@@ -1165,6 +1166,11 @@ const scrollState = {
   movimientos: { top: 0, left: 0 }
 };
 
+// Si está en true, la próxima vez que se restaure el scroll de Movimientos
+// se va directo al final (abajo a la izquierda) en vez de la posición previa.
+// Se usa al sincronizar datos (cargarDatos), solo si ya se estaba en esa pestaña.
+let irAlFondoMovimientos = false;
+
 function guardarScrollActual(){
   if(currentTab === 'movimientos'){
     const movScroll = document.getElementById('mov-scroll');
@@ -1183,8 +1189,14 @@ function restaurarScroll(){
   if(currentTab === 'movimientos'){
     const movScroll = document.getElementById('mov-scroll');
     if(movScroll){
-      movScroll.scrollTop = scrollState.movimientos.top;
-      movScroll.scrollLeft = scrollState.movimientos.left;
+      if(irAlFondoMovimientos){
+        movScroll.scrollTop = movScroll.scrollHeight;
+        movScroll.scrollLeft = 0;
+        irAlFondoMovimientos = false;
+      }else{
+        movScroll.scrollTop = scrollState.movimientos.top;
+        movScroll.scrollLeft = scrollState.movimientos.left;
+      }
     }
   }else if(currentTab === 'resumen'){
     mainEl.scrollTop = scrollState.resumen;
