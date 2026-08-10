@@ -42,12 +42,6 @@
       width:min(1800px, 96vw);
       transform:translateX(-50%);
     }
-    /* Cuando la tabla de Movimientos se estira (grid-mode), los botones
-       flotantes tienen que ir contra el borde derecho de ESA tabla ancha,
-       no contra el borde del contenedor angosto de 520px. */
-    .fab.grid-mode, .fab-acciones.grid-mode{
-      right:calc((100vw - min(1800px, 96vw)) / 2 + 22px);
-    }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   html,body{
@@ -339,8 +333,7 @@
 
   /* Botón flotante (+) para nuevo movimiento */
   .fab{
-    position:fixed; bottom:28px;
-    right:max(22px, calc((100vw - var(--app-max-width)) / 2 + 22px));
+    position:fixed; bottom:28px; right:22px;
     width:56px; height:56px; border-radius:50%;
     background:var(--azul); color:#fff; border:none;
     display:flex; align-items:center; justify-content:center;
@@ -352,8 +345,7 @@
 
   /* Botones flotantes "Copiar" y "Editar", aparecen arriba del + al seleccionar una fila */
   .fab-acciones{
-    position:fixed; bottom:96px;
-    right:max(22px, calc((100vw - var(--app-max-width)) / 2 + 22px));
+    position:fixed; bottom:96px; right:22px;
     display:flex; flex-direction:column; gap:12px; z-index:50;
   }
   .fab-acciones.hidden{ display:none; }
@@ -1206,8 +1198,7 @@ function render(){
   resumenControlsEl.classList.toggle('hidden', currentTab !== 'resumen');
   const filtro = currentTab === 'movimientos' ? searchEl.value.trim() : '';
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
-  fabNuevo.classList.toggle('grid-mode', currentTab === 'movimientos');
-  fabAcciones.classList.toggle('grid-mode', currentTab === 'movimientos');
+  fabNuevo.classList.toggle('hidden', currentTab !== 'movimientos' || !puedeAgregar());
   if(currentTab === 'stock'){
     headerTitle.textContent = 'Stock';
     renderStock(filtro);
@@ -1219,7 +1210,26 @@ function render(){
     renderMovimientos(filtro);
   }
   restaurarScroll();
+  posicionarFabs();
 }
+
+// Alinea los botones flotantes (+/copiar/editar/eliminar) apenas adentro
+// del borde real de la tabla de Movimientos (tanto en celular como en PC,
+// donde la tabla se estira más ancha que el resto de la app), dejando
+// margen suficiente para no superponerse con las barras de scroll
+// vertical y horizontal.
+function posicionarFabs(){
+  const wrap = document.querySelector('.mov-table-wrap');
+  if(!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const right = Math.max(16, window.innerWidth - rect.right + 26);
+  const bottomBase = Math.max(28, window.innerHeight - rect.bottom + 26);
+  fabNuevo.style.right = right + 'px';
+  fabNuevo.style.bottom = bottomBase + 'px';
+  fabAcciones.style.right = right + 'px';
+  fabAcciones.style.bottom = (bottomBase + 68) + 'px';
+}
+window.addEventListener('resize', posicionarFabs);
 
 function setTab(tab){
   if(tab === currentTab) return;
@@ -1228,7 +1238,6 @@ function setTab(tab){
   document.getElementById('tab-stock').classList.toggle('active', tab === 'stock');
   document.getElementById('tab-mov').classList.toggle('active', tab === 'movimientos');
   document.getElementById('tab-resumen').classList.toggle('active', tab === 'resumen');
-  fabNuevo.classList.toggle('hidden', tab !== 'movimientos' || !puedeAgregar());
   deseleccionarFila();
   render();
 }
