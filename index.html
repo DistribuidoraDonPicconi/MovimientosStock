@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Stock</title>
+<title>Plata</title>
 
 <!-- PWA: instalable en el celular -->
 <link rel="manifest" href="manifest.json">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Stock DP">
+<meta name="apple-mobile-web-app-title" content="Plata DP">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -41,12 +41,6 @@
       left:50%;
       width:min(1800px, 96vw);
       transform:translateX(-50%);
-    }
-    /* Cuando la tabla de Movimientos se estira (grid-mode), los botones
-       flotantes tienen que ir contra el borde derecho de ESA tabla ancha,
-       no contra el borde del contenedor angosto de 520px. */
-    .fab.grid-mode, .fab-acciones.grid-mode{
-      right:calc((100vw - min(1800px, 96vw)) / 2 + 22px);
     }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
@@ -110,6 +104,7 @@
     background:var(--azul); color:#fff;
     box-shadow:0 2px 6px rgba(42,92,201,0.35);
   }
+  .pill-tabs button.hidden{ display:none; }
 
   /* Search */
   .search-wrap{ padding:12px 20px 6px; flex-shrink:0; }
@@ -194,6 +189,20 @@
   table.stock td.total{ font-size:16px; font-weight:800; color:#1a1f2b; width:78px; white-space:nowrap; }
   table.stock th.entradas, table.stock th.salidas, table.stock th.total{ width:78px; }
 
+  /* Tabla "Plata Actual": una fila por Modo (Efectivo/Cheque/Banco) + Total */
+  table.plata-actual td.modo{ font-weight:800; color:#1a1f2b; }
+  table.plata-actual td.plata{
+    font-size:15.5px; font-weight:800; color:#1a1f2b;
+  }
+  table.plata-actual td.plata.pos{ color:#1a1f2b; }
+  table.plata-actual td.plata.neg{ color:var(--rojo); }
+  table.plata-actual tr.plata-total-row td{
+    background:#eef3fc; border-top:1.5px solid var(--azul-borde);
+  }
+  table.plata-actual tr.plata-total-row td.modo{ color:var(--azul-osc); }
+  table.plata-actual tr.plata-total-row td.plata{ font-size:16.5px; color:var(--azul-osc); }
+  table.plata-actual tr.plata-total-row td.plata.neg{ color:var(--rojo); }
+
   /* Tabla de Resumen: misma estructura que Stock Actual pero con fuente más
      chica, para que entren los números de Entradas/Salidas/Total sin cortarse */
   table.resumen-table td{ padding:7px 6px; }
@@ -221,7 +230,7 @@
   .mov-scroll{
     overflow:auto; -webkit-overflow-scrolling:touch;
   }
-  table.mov{ border-collapse:separate; border-spacing:0; width:100%; min-width:800px; }
+  table.mov{ border-collapse:separate; border-spacing:0; width:100%; min-width:920px; }
   table.mov th{
     position:sticky; top:0; background:#fff; z-index:1;
     text-align:center; font-size:16px; color:#1a1f2b; font-weight:800;
@@ -338,9 +347,12 @@
   .confirm-box .btn-confirmar:active{ opacity:0.85; }
 
   /* Botón flotante (+) para nuevo movimiento */
+  /* "right" se fija dinámicamente por JS (posicionarFabs) contra el borde
+     derecho real de la tabla de Movimientos; este valor es solo el
+     respaldo inicial antes de que corra el JS. */
   .fab{
     position:fixed; bottom:28px;
-    right:max(22px, calc((100vw - var(--app-max-width)) / 2 + 22px));
+    right:22px;
     width:56px; height:56px; border-radius:50%;
     background:var(--azul); color:#fff; border:none;
     display:flex; align-items:center; justify-content:center;
@@ -350,10 +362,10 @@
   .fab.hidden{ display:none; }
   .fab svg{ width:26px; height:26px; }
 
-  /* Botones flotantes "Copiar" y "Editar", aparecen arriba del + al seleccionar una fila */
+  /* Botones flotantes "Copiar", "Editar" y "Eliminar", aparecen arriba del + al seleccionar una fila */
   .fab-acciones{
     position:fixed; bottom:96px;
-    right:max(22px, calc((100vw - var(--app-max-width)) / 2 + 22px));
+    right:22px;
     display:flex; flex-direction:column; gap:12px; z-index:50;
   }
   .fab-acciones.hidden{ display:none; }
@@ -413,7 +425,7 @@
   }
   .nuevo-body input[readonly]:focus{ border-color:var(--azul-borde); }
 
-  /* Botones de Sección */
+  /* Botones de Categoría */
   .nm-seccion-grid{
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
   }
@@ -435,25 +447,22 @@
     display:grid; gap:10px;
   }
   .nuevo-productos-grid.principales{
-    grid-template-columns:1fr 1fr;
-    margin-bottom:10px;
-  }
-  .nuevo-productos-grid.resto{
-    grid-template-columns:1fr 1fr 1fr;
+    grid-template-columns:1fr;
   }
   .nuevo-prod-item{
     background:#fdfbf3; border:1px solid #ece4c8; border-radius:14px;
-    padding:12px 8px 11px; text-align:center;
-    display:flex; flex-direction:column; align-items:center;
+    padding:10px 14px; text-align:left;
+    display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:10px;
   }
   .nuevo-prod-item label{
-    font-size:13.5px; font-weight:800; color:#1a1f2b;
-    margin:0 0 8px; line-height:1.25;
+    font-size:14.5px; font-weight:800; color:#1a1f2b;
+    margin:0; line-height:1.25; white-space:nowrap;
+    width:80px; flex-shrink:0;
   }
   .nuevo-prod-item input{
-    width:100%; padding:9px 4px; border-radius:9px; border:1px solid var(--azul-borde);
+    width:auto; flex:1; padding:10px 12px; border-radius:9px; border:1px solid var(--azul-borde);
     font-size:16px; outline:none; color:var(--azul); font-weight:700;
-    text-align:center; background:#fff;
+    text-align:left; background:#fff;
   }
   .nuevo-prod-item input:focus{ border-color:var(--azul); }
   .nuevo-prod-item input::placeholder{ color:#b7c0d4; font-weight:500; }
@@ -479,7 +488,7 @@
 
 <div id="lock-screen">
   <div class="lock-box">
-    <div class="lock-logo"><img src="icon-512.png" alt="Stock DP"></div>
+    <div class="lock-logo"><img src="icon-512.png" alt="Plata DP"></div>
     <h2>Acceso restringido</h2>
     <p>Iniciá sesión con tu cuenta de Google</p>
     <div id="google-btn"></div>
@@ -541,22 +550,24 @@
     <div class="nuevo-body">
       <input type="hidden" id="nm-edit-id">
 	  
-	  <label>Fecha</label>
+	   <label>Fecha</label>
       <input type="date" id="nm-fecha">
 
-      <label>Sección</label>
+      <label>Categoría</label>
       <div class="nm-seccion-grid" id="nm-seccion-grid"></div>
       <input type="hidden" id="nm-seccion">
 
       <label>Concepto</label>
-      <input type="text" id="nm-concepto" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
+      <input type="text" id="nm-concepto" placeholder="Ej: 1B, Juan, Gustavo, Comedor">
 
       <label>Notas</label>
       <input type="text" id="nm-notas" placeholder="Opcional">
 
-      <div class="nuevo-productos-title">Productos</div>
+      <div class="nuevo-productos-title">Importe</div>
       <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
-      <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
+
+      <label for="nm-total">Total</label>
+      <input type="text" id="nm-total" readonly>
 
       <label>Usuario</label>
       <input type="text" id="nm-usuario" readonly>
@@ -574,7 +585,7 @@
   <header>
     <div class="top-row">
       <div>
-        <h1 id="header-title">Stock</h1>
+        <h1 id="header-title">Plata</h1>
         <div class="sub">Distribuidora Don Picconi</div>
       </div>
       <div style="display:flex; gap:22px;">
@@ -589,7 +600,7 @@
   </header>
 
   <div class="pill-tabs">
-    <button id="tab-stock" data-tab="stock" class="active">Stock Actual</button>
+    <button id="tab-stock" data-tab="stock" class="active">Plata Actual</button>
     <button id="tab-mov" data-tab="movimientos">Movimientos</button>
     <button id="tab-resumen" data-tab="resumen">Resumen</button>
   </div>
@@ -612,7 +623,7 @@
     </div>
     <div class="resumen-filtros-fila">
       <div class="resumen-seccion-campo">
-        <label for="resumen-seccion">Sección</label>
+        <label for="resumen-seccion">Categoría</label>
         <select id="resumen-seccion">
           <option value="">Todas</option>
         </select>
@@ -628,7 +639,7 @@
 
 
   <div class="search-wrap" id="search-wrap">
-    <input type="text" id="search" placeholder="Buscar producto...">
+    <input type="text" id="search" placeholder="Buscar movimiento...">
   </div>
 
   <main id="main">
@@ -641,7 +652,7 @@
 /* ============== CONFIGURACIÓN ============== */
 const CONFIG = {
   // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzxm0w6tL_dIVYqiMp4b4wRTjoLtICDap1us1p4WVwoRWpsZqM-zC7BI4ROC6MJ_lV-BQ/exec',
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxVS2QFAFA5fng_dL3zFjNKrdCXHhPJ0doQhvOzN_-6zzHpfeRsU99CmR7-HfvYwSbS/exec',
 
   // Client ID de OAuth de Google (tiene que ser el mismo que en Código.gs)
   GOOGLE_CLIENT_ID: '922655936984-eb35rn1hu1855l6b4939qvvl286h7l10.apps.googleusercontent.com',
@@ -652,19 +663,15 @@ const CONFIG = {
   // 'sin_permisos': solo puede ver, ningún botón de acción.
   ROLES: {
     'nicolaspicconi@gmail.com': 'admin',
-    'santinopicconi@gmail.com': 'colaborador',
-    'alejandropicconi@gmail.com': 'sin_permisos'
+    'alejandropicconi@gmail.com': 'colaborador',
+    'distribuidoradonpicconi@gmail.com': 'sin_permisos'
   },
 
   // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
   CAMPO_FECHA: 'Fecha',
 
-  // Columnas de producto, en el orden en que querés que aparezcan
-  PRODUCTOS: [
-    'Cajones de Pollo', 'Unidades de Pollo', 'Cuarto', 'Filet de Muslo',
-    'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida',
-    'Carcaza', 'Medallones', 'Formitas', 'Tiritas'
-  ]
+  // Columnas de plata, en el orden en que querés que aparezcan
+  PRODUCTOS: ['Efectivo', 'Cheque', 'Banco']
 };
 /* ============================================= */
 
@@ -714,6 +721,20 @@ function formatNum(n){
   });
 }
 
+// Formatea un monto de plata: sin decimales si el número es entero,
+// negativos con signo menos delante (se pintan de rojo aparte, vía clase CSS).
+function formatMoneda(n){
+  const num = Number(n || 0);
+  const redondeado = Math.round((num + Number.EPSILON) * 100) / 100;
+  const abs = Math.abs(redondeado);
+  const esEntero = abs % 1 === 0;
+  const str = '$' + abs.toLocaleString('es-AR', {
+    minimumFractionDigits: esEntero ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+  return redondeado < 0 ? `-${str}` : str;
+}
+
 /* ============== Login con Google ============== */
 const ID_TOKEN_KEY = 'dp_stock_id_token';
 const ID_TOKEN_EXP_KEY = 'dp_stock_id_token_exp';
@@ -729,6 +750,21 @@ function puedeAgregar(){
 }
 function esAdmin(){
   return rolActual === 'admin';
+}
+function puedeVerPlataActual(){
+  return rolActual === 'admin';
+}
+
+// Oculta/muestra la pestaña "Plata Actual" según el rol, y si el usuario
+// no tiene permiso y esa pestaña había quedado como la actual (por ejemplo
+// currentTab arranca en 'stock'), lo manda a "Movimientos" en su lugar.
+function aplicarVisibilidadTabsPorRol(){
+  const tabStockEl = document.getElementById('tab-stock');
+  tabStockEl.classList.toggle('hidden', !puedeVerPlataActual());
+  if(!puedeVerPlataActual() && currentTab === 'stock'){
+    currentTab = 'movimientos';
+    document.getElementById('tab-mov').classList.add('active');
+  }
 }
 
 // Decodifica el JWT del login de Google solo para leer el email
@@ -773,6 +809,7 @@ function handleCredentialResponse(response){
   localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
   lockError.textContent = '';
   lockScreen.classList.add('hidden');
+  aplicarVisibilidadTabsPorRol();
   cargarDatos();
 }
 
@@ -810,6 +847,7 @@ window.addEventListener('load', function(){
     rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || 'sin_permisos';
     emailActual = String((payloadGuardado && payloadGuardado.email) || '');
     lockScreen.classList.add('hidden');
+    aplicarVisibilidadTabsPorRol();
     cargarDatos();
   }else if(window.google && google.accounts && google.accounts.id){
     lockLoading.textContent = 'Buscando sesión de Google...';
@@ -881,38 +919,44 @@ function calcularStock(){
   return stock;
 }
 
-function renderStock(filtro){
+function renderStock(){
   const stock = calcularStock();
-  const filas = CONFIG.PRODUCTOS
-    .filter(p => !filtro || p.toLowerCase().includes(filtro.toLowerCase()))
-    .filter(p => Math.round((stock[p].total + Number.EPSILON) * 100) / 100 !== 0)
-    .map(p => {
-      const s = stock[p];
-      const total = Math.round((s.total + Number.EPSILON) * 100) / 100;
-      const claseSigno = total < 0 ? 'neg' : 'pos';
-      return `<tr>
-        <td class="prod">${p}</td>
-        <td class="stock ${claseSigno}">${formatNum(s.total)}</td>
-        <td class="fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</td>
-      </tr>`;
-    }).join('');
+  const total = CONFIG.PRODUCTOS.reduce((acc, p) => acc + stock[p].total, 0);
+  const ultimaFechaTotal = CONFIG.PRODUCTOS.reduce((max, p) => {
+    const f = stock[p].ultimaFecha;
+    return (f && (!max || f > max)) ? f : max;
+  }, null);
 
-  if(!filas){
-    mainEl.innerHTML = `<div class="state-msg">Sin productos que coincidan.</div>`;
-    return;
-  }
+  const filas = CONFIG.PRODUCTOS.map(p => {
+    const s = stock[p];
+    const t = Math.round((s.total + Number.EPSILON) * 100) / 100;
+    const clase = t < 0 ? 'neg' : 'pos';
+    return `<tr>
+      <td class="modo">${p}</td>
+      <td class="plata ${clase}">${formatMoneda(s.total)}</td>
+      <td class="fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</td>
+    </tr>`;
+  }).join('');
+
+  const totalRedondeado = Math.round((total + Number.EPSILON) * 100) / 100;
+  const claseTotal = totalRedondeado < 0 ? 'neg' : 'pos';
+  const filaTotal = `<tr class="plata-total-row">
+    <td class="modo">Total</td>
+    <td class="plata total ${claseTotal}">${formatMoneda(total)}</td>
+    <td class="fecha">${ultimaFechaTotal ? formatFecha(ultimaFechaTotal) : '-'}</td>
+  </tr>`;
 
   mainEl.innerHTML = `
     <div class="stock-table-wrap">
-      <table class="stock">
+      <table class="stock plata-actual">
         <thead>
           <tr>
-            <th class="prod">Producto</th>
-            <th class="stock">Cantidad</th>
+            <th class="modo">Modo</th>
+            <th class="plata">Importe</th>
             <th class="fecha">Fecha</th>
           </tr>
         </thead>
-        <tbody>${filas}</tbody>
+        <tbody>${filas}${filaTotal}</tbody>
       </table>
     </div>`;
 }
@@ -951,17 +995,14 @@ function obtenerRangoResumen(){
   return { desde, hasta };
 }
 
-const VENTA_TOTAL_VALUE = '__venta_total__';
-
-function seccionCoincide(mov, seccionFiltro){
-  if(!seccionFiltro) return true;
-  if(seccionFiltro === VENTA_TOTAL_VALUE) return mov['Sección'] === 'Repartos' || mov['Sección'] === 'Granja';
-  return mov['Sección'] === seccionFiltro;
+function seccionCoincide(mov, categoriaFiltro){
+  if(!categoriaFiltro) return true;
+  return mov['Categoría'] === categoriaFiltro;
 }
 
 function actualizarOpcionesConcepto(){
   const { desde, hasta } = obtenerRangoResumen();
-  const seccion = resumenSeccionEl.value;
+  const categoria = resumenSeccionEl.value;
   const seleccionPrevia = resumenConceptoEl.value;
 
   const conceptos = new Set();
@@ -969,7 +1010,7 @@ function actualizarOpcionesConcepto(){
     movimientos.forEach(mov => {
       const f = new Date(mov[CONFIG.CAMPO_FECHA]);
       if(isNaN(f) || f < desde || f > hasta) return;
-      if(!seccionCoincide(mov, seccion)) return;
+      if(!seccionCoincide(mov, categoria)) return;
       const concepto = (mov['Concepto'] || '').trim();
       if(concepto) conceptos.add(concepto);
     });
@@ -985,7 +1026,7 @@ function actualizarOpcionesConcepto(){
 
 function calcularResumen(){
   const { desde, hasta } = obtenerRangoResumen();
-  const seccion = resumenSeccionEl.value;
+  const categoria = resumenSeccionEl.value;
   const concepto = resumenConceptoEl.value;
 
   const resumen = {};
@@ -996,7 +1037,7 @@ function calcularResumen(){
   movimientos.forEach(mov => {
     const f = new Date(mov[CONFIG.CAMPO_FECHA]);
     if(isNaN(f) || f < desde || f > hasta) return;
-    if(!seccionCoincide(mov, seccion)) return;
+    if(!seccionCoincide(mov, categoria)) return;
     if(concepto && (mov['Concepto'] || '').trim() !== concepto) return;
 
     CONFIG.PRODUCTOS.forEach(p => {
@@ -1012,27 +1053,16 @@ function calcularResumen(){
   return resumen;
 }
 
-// Productos que se consideran "trozado" para el cálculo de Cajas de Pollo
-// (todo el trozado, sin contar Cajones/Unidades de Pollo enteras ni
-// Medallones, Formitas o Tiritas)
-const TROZADO_PRODUCTOS = ['Cuarto', 'Filet de Muslo', 'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida', 'Carcaza'];
-
-function calcularCajasPollo(resumen){
-  const cajones = resumen['Cajones de Pollo'] || {entradas:0, salidas:0, total:0};
-  const unidades = resumen['Unidades de Pollo'] || {entradas:0, salidas:0, total:0};
-  const trozado = {entradas:0, salidas:0, total:0};
-  TROZADO_PRODUCTOS.forEach(p => {
-    if(resumen[p]){
-      trozado.entradas += resumen[p].entradas;
-      trozado.salidas += resumen[p].salidas;
-      trozado.total += resumen[p].total;
-    }
-  });
-  return {
-    entradas: cajones.entradas + (unidades.entradas / 8) + (trozado.entradas / 20),
-    salidas: cajones.salidas + (unidades.salidas / 8) + (trozado.salidas / 20),
-    total: cajones.total + (unidades.total / 8) + (trozado.total / 20)
-  };
+// Fila "Total" del resumen: suma Efectivo + Cheque + Banco
+function calcularTotalResumen(resumen){
+  return CONFIG.PRODUCTOS.reduce((acc, p) => {
+    const r = resumen[p] || {entradas:0, salidas:0, total:0};
+    return {
+      entradas: acc.entradas + r.entradas,
+      salidas: acc.salidas + r.salidas,
+      total: acc.total + r.total
+    };
+  }, {entradas:0, salidas:0, total:0});
 }
 
 function renderResumen(){
@@ -1055,9 +1085,9 @@ function renderResumen(){
       const r = resumen[p];
       return `<tr>
         <td class="prod">${p}</td>
-        <td class="entradas">${formatNum(r.entradas)}</td>
-        <td class="salidas">${formatNum(r.salidas)}</td>
-        <td class="total">${formatNum(r.total)}</td>
+        <td class="entradas">${formatMoneda(r.entradas)}</td>
+        <td class="salidas">${formatMoneda(r.salidas)}</td>
+        <td class="total">${formatMoneda(r.total)}</td>
       </tr>`;
     }).join('');
 
@@ -1066,12 +1096,12 @@ function renderResumen(){
     return;
   }
 
-  const cajasPollo = calcularCajasPollo(resumen);
-  const filaCajasPollo = `<tr class="cajas-pollo-row">
-    <td class="prod">Total en cajones</td>
-    <td class="entradas">${formatNum(cajasPollo.entradas)}</td>
-    <td class="salidas">${formatNum(cajasPollo.salidas)}</td>
-    <td class="total">${formatNum(cajasPollo.total)}</td>
+  const totalGeneral = calcularTotalResumen(resumen);
+  const filaTotal = `<tr class="cajas-pollo-row">
+    <td class="prod">Total</td>
+    <td class="entradas">${formatMoneda(totalGeneral.entradas)}</td>
+    <td class="salidas">${formatMoneda(totalGeneral.salidas)}</td>
+    <td class="total">${formatMoneda(totalGeneral.total)}</td>
   </tr>`;
 
   mainEl.innerHTML = `
@@ -1079,15 +1109,28 @@ function renderResumen(){
       <table class="stock resumen-table">
         <thead>
           <tr>
-            <th class="prod">Producto</th>
+            <th class="prod">Tipo</th>
             <th class="entradas">Entradas</th>
             <th class="salidas">Salidas</th>
             <th class="total">Total</th>
           </tr>
         </thead>
-        <tbody>${filas}${filaCajasPollo}</tbody>
+        <tbody>${filas}${filaTotal}</tbody>
       </table>
     </div>`;
+}
+
+// Total de un movimiento: usa la columna "Total" de la planilla si vino
+// cargada, o si no la calcula sumando Efectivo + Cheque + Banco.
+function totalMovimiento(mov){
+  const totalPlanilla = parseFloat(mov['Total']);
+  if(!isNaN(totalPlanilla) && mov['Total'] !== '' && mov['Total'] !== undefined && mov['Total'] !== null){
+    return totalPlanilla;
+  }
+  return CONFIG.PRODUCTOS.reduce((acc, p) => {
+    const v = parseFloat(mov[p]);
+    return acc + (isNaN(v) ? 0 : v);
+  }, 0);
 }
 
 function renderMovimientos(filtro){
@@ -1096,38 +1139,29 @@ function renderMovimientos(filtro){
   // nota porque el movimiento aparece fuera de lugar en vez de quedar oculto.
   const ordenados = movimientos;
 
-  // columnas de producto a mostrar: si el filtro coincide con algún nombre de
-  // producto, mostramos solo esas; si no coincide con ninguno (porque busca por
-  // sección, concepto, notas o usuario), mostramos todas las columnas igual.
-  const productosCoincidentes = filtro
-    ? CONFIG.PRODUCTOS.filter(p => p.toLowerCase().includes(filtro.toLowerCase()))
-    : [];
-  const productosVisibles = productosCoincidentes.length > 0 ? productosCoincidentes : CONFIG.PRODUCTOS;
-
   const filas = ordenados
     .filter(mov => {
       if(!filtro) return true;
-      // coincide si el filtro matchea un producto con movimiento en esa fila,
-      // o si matchea el concepto/sección/notas
-      const matchProducto = CONFIG.PRODUCTOS.some(p => p.toLowerCase().includes(filtro.toLowerCase()) && parseFloat(mov[p]));
-      const texto = `${mov['Concepto']||''} ${mov['Sección']||''} ${mov['Notas']||''} ${mov['Usuario']||''}`.toLowerCase();
-      return matchProducto || texto.includes(filtro.toLowerCase());
+      const texto = `${mov['Concepto']||''} ${mov['Categoría']||''} ${mov['Notas']||''} ${mov['Usuario']||''}`.toLowerCase();
+      return texto.includes(filtro.toLowerCase());
     })
     .map(mov => {
-      const celdasProducto = productosVisibles.map(p => {
+      const celdasProducto = CONFIG.PRODUCTOS.map(p => {
         const val = parseFloat(mov[p]);
         if(!val) return `<td class="num zero">-</td>`;
         const cls = val >= 0 ? 'pos' : 'neg';
-        const signo = val >= 0 ? '+' : '';
-        return `<td class="num ${cls}">${signo}${formatNum(val)}</td>`;
+        return `<td class="num ${cls}">${formatMoneda(val)}</td>`;
       }).join('');
+
+      const total = totalMovimiento(mov);
+      const clsTotal = total > 0 ? 'pos' : (total < 0 ? 'neg' : 'zero');
 
       return `<tr class="mov-row" data-id="${mov['ID'] || ''}">
         <td class="fecha">${formatFecha(mov[CONFIG.CAMPO_FECHA])}</td>
-        <td>${mov['Sección'] || '-'}</td>
+        <td>${mov['Categoría'] || '-'}</td>
         <td>${mov['Concepto'] || '-'}</td>
-        <td>${mov['Notas'] || '-'}</td>
         ${celdasProducto}
+        <td class="num ${clsTotal}">${formatMoneda(total)}</td>
         <td>${mov['Usuario'] || '-'}</td>
       </tr>`;
     }).join('');
@@ -1137,7 +1171,7 @@ function renderMovimientos(filtro){
     return;
   }
 
-  const headerProductos = productosVisibles.map(p => `<th>${p}</th>`).join('');
+  const headerProductos = CONFIG.PRODUCTOS.map(p => `<th>${p}</th>`).join('');
 
   mainEl.innerHTML = `
     <div class="mov-table-wrap">
@@ -1145,9 +1179,9 @@ function renderMovimientos(filtro){
         <table class="mov">
           <thead>
             <tr>
-              <th>Fecha</th><th>Sección</th><th>Concepto</th><th>Notas</th>
+              <th>Fecha</th><th>Categoría</th><th>Concepto</th>
               ${headerProductos}
-              <th>Usuario</th>
+              <th>Total</th><th>Usuario</th>
             </tr>
           </thead>
           <tbody>${filas}</tbody>
@@ -1205,11 +1239,10 @@ function render(){
   resumenControlsEl.classList.toggle('hidden', currentTab !== 'resumen');
   const filtro = currentTab === 'movimientos' ? searchEl.value.trim() : '';
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
-  fabNuevo.classList.toggle('grid-mode', currentTab === 'movimientos');
-  fabAcciones.classList.toggle('grid-mode', currentTab === 'movimientos');
+  fabNuevo.classList.toggle('hidden', currentTab !== 'movimientos' || !puedeAgregar());
   if(currentTab === 'stock'){
-    headerTitle.textContent = 'Stock';
-    renderStock(filtro);
+    headerTitle.textContent = 'Plata';
+    renderStock();
   }else if(currentTab === 'resumen'){
     headerTitle.textContent = 'Resumen';
     renderResumen();
@@ -1218,16 +1251,30 @@ function render(){
     renderMovimientos(filtro);
   }
   restaurarScroll();
+  posicionarFabs();
 }
 
+// Alinea los botones flotantes (+/copiar/editar/eliminar) contra el borde
+// derecho real de la tabla de Movimientos, tanto en celular como en PC
+// (donde la tabla se estira más ancha que el resto de la app).
+function posicionarFabs(){
+  const wrap = document.querySelector('.mov-table-wrap');
+  if(!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const right = Math.max(16, window.innerWidth - rect.right + 22);
+  fabNuevo.style.right = right + 'px';
+  fabAcciones.style.right = right + 'px';
+}
+window.addEventListener('resize', posicionarFabs);
+
 function setTab(tab){
+  if(tab === 'stock' && !puedeVerPlataActual()) return;
   if(tab === currentTab) return;
   guardarScrollActual();
   currentTab = tab;
   document.getElementById('tab-stock').classList.toggle('active', tab === 'stock');
   document.getElementById('tab-mov').classList.toggle('active', tab === 'movimientos');
   document.getElementById('tab-resumen').classList.toggle('active', tab === 'resumen');
-  fabNuevo.classList.toggle('hidden', tab !== 'movimientos' || !puedeAgregar());
   deseleccionarFila();
   render();
 }
@@ -1259,9 +1306,8 @@ searchEl.addEventListener('input', () => {
 });
 
 /* ============== Nuevo movimiento ============== */
-const SECCIONES = ['Compras', 'Granja', 'Repartos', 'Trozado', 'Ajustes', 'Otros'];
-resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
-  + `<option value="${VENTA_TOTAL_VALUE}">Venta total</option>`;
+const SECCIONES = ['Personales', 'Empresa', 'Frigorífico', 'Banco', 'Sueldos', 'Granja', 'Repartos', 'Otros'];
+resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('');
 const fabNuevo = document.getElementById('fab-nuevo');
 const fabAcciones = document.getElementById('fab-acciones');
 const fabEditar = document.getElementById('fab-editar');
@@ -1349,7 +1395,6 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
 });
 const nuevoModal = document.getElementById('nuevo-modal');
 const nmProductosPrincipales = document.getElementById('nm-productos-principales');
-const nmProductosResto = document.getElementById('nm-productos-resto');
 const nmSeccionGrid = document.getElementById('nm-seccion-grid');
 const nmSeccion = document.getElementById('nm-seccion');
 const nmEditId = document.getElementById('nm-edit-id');
@@ -1358,6 +1403,7 @@ const nmConcepto = document.getElementById('nm-concepto');
 const nmNotas = document.getElementById('nm-notas');
 const nmUsuario = document.getElementById('nm-usuario');
 const nmFecha = document.getElementById('nm-fecha');
+const nmTotal = document.getElementById('nm-total');
 const nuevoError = document.getElementById('nuevo-error');
 const btnGuardar = document.getElementById('nuevo-guardar');
 
@@ -1366,20 +1412,19 @@ function itemProductoHTML(p, i){
   return `
     <div class="nuevo-prod-item">
       <label for="nm-prod-${i}">${p}</label>
-      <input type="text" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0" class="nm-prod-input">
+      <input type="text" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="$0" class="nm-prod-input">
     </div>`;
 }
-nmProductosPrincipales.innerHTML = CONFIG.PRODUCTOS.slice(0, 2)
+nmProductosPrincipales.innerHTML = CONFIG.PRODUCTOS
   .map((p, i) => itemProductoHTML(p, i)).join('');
-nmProductosResto.innerHTML = CONFIG.PRODUCTOS.slice(2)
-  .map((p, i) => itemProductoHTML(p, i + 2)).join('');
 
 // Formateo en vivo de los campos de cantidad: separador de miles dinámico,
-// coma como separador decimal, y máximo 4 dígitos en la parte entera.
+// coma como separador decimal, signo $ adelante (igual que el campo Total),
+// y máximo 4 dígitos en la parte entera.
 function formatearCantidad(valorCrudo){
   const negativo = valorCrudo.trim().startsWith('-');
 
-  // dejar solo dígitos y comas
+  // dejar solo dígitos y comas (ignora el $ y cualquier otro caracter)
   let limpio = valorCrudo.replace(/[^0-9,]/g, '');
 
   // quedarnos solo con la primera coma (separador decimal)
@@ -1387,13 +1432,20 @@ function formatearCantidad(valorCrudo){
   let entero = idxComa === -1 ? limpio : limpio.slice(0, idxComa);
   let decimal = idxComa === -1 ? null : limpio.slice(idxComa + 1).replace(/,/g, '');
 
-  // máximo 4 dígitos en la parte entera (sin contar la parte decimal)
-  entero = entero.slice(0, 4);
+  // máximo 10 dígitos en la parte entera (sin contar la parte decimal),
+  // para poder cargar montos grandes de plata
+  entero = entero.slice(0, 10);
 
   // separador de miles dinámico (punto)
   const enteroConPuntos = entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-  let resultado = (negativo ? '-' : '') + enteroConPuntos;
+  // si todavía no hay dígitos cargados, dejar solo el signo menos (si lo hay)
+  // en vez de borrarlo, para poder seguir escribiendo un número negativo
+  if(enteroConPuntos === '' && decimal === null){
+    return negativo ? '-' : '';
+  }
+
+  let resultado = (negativo ? '-' : '') + '$' + enteroConPuntos;
   if(decimal !== null) resultado += ',' + decimal;
 
   return resultado;
@@ -1402,16 +1454,30 @@ function formatearCantidad(valorCrudo){
 document.querySelectorAll('.nm-prod-input').forEach(inp => {
   inp.addEventListener('input', () => {
     inp.value = formatearCantidad(inp.value);
+    actualizarTotalFormulario();
   });
 });
 
-// Antes de enviar: quita los puntos de miles y deja el número limpio
-// (la coma decimal se convierte a punto del lado del Apps Script).
-function limpiarCantidadParaEnvio(valorFormateado){
-  return valorFormateado.replace(/\./g, '');
+// Suma Efectivo + Cheque + Banco cargados en el formulario y lo muestra
+// en el campo de solo lectura "Total".
+function actualizarTotalFormulario(){
+  let total = 0;
+  document.querySelectorAll('#nm-productos-principales input').forEach(inp => {
+    const val = inp.value.trim();
+    if(val === '') return;
+    const n = parseFloat(limpiarCantidadParaEnvio(val).replace(',', '.'));
+    if(!isNaN(n)) total += n;
+  });
+  nmTotal.value = formatMoneda(total);
 }
 
-// generar los botones de Sección, una sola vez
+// Antes de enviar/calcular: quita el $ y los puntos de miles y deja el
+// número limpio (la coma decimal se convierte a punto del lado del Apps Script).
+function limpiarCantidadParaEnvio(valorFormateado){
+  return valorFormateado.replace(/\$/g, '').replace(/\./g, '');
+}
+
+// generar los botones de Categoría, una sola vez
 nmSeccionGrid.innerHTML = SECCIONES.map(s => `
   <button type="button" class="nm-seccion-btn" data-seccion="${s}">${s}</button>
 `).join('');
@@ -1444,7 +1510,7 @@ function abrirNuevoModal(mov, modoEditar){
   nmEditId.value = (precargar && modoEditar) ? (mov['ID'] || '') : '';
   nuevoTitulo.textContent = modoEditar ? 'Editar movimiento' : (precargar ? 'Copiar movimiento' : 'Nuevo movimiento');
 
-  seleccionarSeccion(precargar ? (mov['Sección'] || '') : '');
+  seleccionarSeccion(precargar ? (mov['Categoría'] || '') : '');
   nmConcepto.value = precargar ? (mov['Concepto'] || '') : '';
   nmNotas.value = precargar ? (mov['Notas'] || '') : '';
   nmUsuario.value = emailActual;
@@ -1452,9 +1518,10 @@ function abrirNuevoModal(mov, modoEditar){
     ? fechaLocalInput(new Date(mov[CONFIG.CAMPO_FECHA]))
     : fechaLocalInput(new Date());
 
-  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+  document.querySelectorAll('#nm-productos-principales input').forEach(inp => {
     inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
   });
+  actualizarTotalFormulario();
 
   nuevoError.textContent = '';
   btnGuardar.disabled = false;
@@ -1478,13 +1545,13 @@ btnGuardar.addEventListener('click', async () => {
   const concepto = nmConcepto.value.trim();
 
   if(!seccion && !concepto){
-    nuevoError.textContent = 'Completá al menos Sección o Concepto.';
+    nuevoError.textContent = 'Completá al menos Categoría o Concepto.';
     return;
   }
 
   const productos = {};
   let hayCantidad = false;
-  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+  document.querySelectorAll('#nm-productos-principales input').forEach(inp => {
     const val = inp.value.trim();
     if(val !== ''){
       productos[inp.dataset.producto] = limpiarCantidadParaEnvio(val);
