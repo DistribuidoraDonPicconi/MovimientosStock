@@ -42,6 +42,12 @@
       width:min(1800px, 96vw);
       transform:translateX(-50%);
     }
+    /* Cuando la tabla de Movimientos se estira (grid-mode), los botones
+       flotantes tienen que ir contra el borde derecho de ESA tabla ancha,
+       no contra el borde del contenedor angosto de 520px. */
+    .fab.grid-mode, .fab-acciones.grid-mode{
+      right:calc((100vw - min(1800px, 96vw)) / 2 + 22px);
+    }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
   html,body{
@@ -382,7 +388,7 @@
     display:flex; align-items:center; justify-content:space-between;
     padding:18px 20px 14px; border-bottom:1px solid var(--linea); flex-shrink:0;
   }
-  .nuevo-header h3{ margin:0; font-size:18px; font-weight:800; color:#111624; }
+  .nuevo-header h3{ margin:0; font-size:19px; font-weight:800; color:#111624; }
   .nuevo-close{
     background:var(--azul-suave); border:none; color:var(--azul-osc);
     width:30px; height:30px; border-radius:50%; font-size:18px; line-height:1;
@@ -392,14 +398,14 @@
     padding:16px 20px; overflow-y:auto; -webkit-overflow-scrolling:touch;
   }
   .nuevo-body label{
-    display:block; font-size:13px; font-weight:700; color:var(--azul-osc);
+    display:block; font-size:15.5px; font-weight:800; color:var(--azul-osc);
     margin:14px 0 6px;
   }
   .nuevo-body label:first-child{ margin-top:0; }
   .nuevo-body input[type="text"],
   .nuevo-body input[type="date"]{
     width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
-    font-size:16px; outline:none; color:#1a1f2b; background:#fff;
+    font-size:17px; outline:none; color:#1a1f2b; background:#fff;
   }
   .nuevo-body input:focus{ border-color:var(--azul); }
   .nuevo-body input[readonly]{
@@ -413,7 +419,7 @@
   }
   .nm-seccion-btn{
     padding:12px 8px; border-radius:11px; border:1.5px solid var(--azul-borde);
-    background:#fff; color:#3a4560; font-size:14.5px; font-weight:700;
+    background:#fff; color:#3a4560; font-size:15.5px; font-weight:700;
     cursor:pointer; text-align:center;
   }
   .nm-seccion-btn.selected{
@@ -422,7 +428,7 @@
   }
   .nm-seccion-btn:active{ opacity:0.85; }
   .nuevo-productos-title{
-    font-size:13px; font-weight:800; color:var(--azul-osc);
+    font-size:15.5px; font-weight:800; color:var(--azul-osc);
     margin:20px 0 8px; padding-top:14px; border-top:1px solid var(--linea);
   }
   .nuevo-productos-grid{
@@ -441,12 +447,12 @@
     display:flex; flex-direction:column; align-items:center;
   }
   .nuevo-prod-item label{
-    font-size:12.5px; font-weight:800; color:#1a1f2b;
+    font-size:13.5px; font-weight:800; color:#1a1f2b;
     margin:0 0 8px; line-height:1.25;
   }
   .nuevo-prod-item input{
-    width:100%; padding:8px 4px; border-radius:9px; border:1px solid var(--azul-borde);
-    font-size:15px; outline:none; color:var(--azul); font-weight:700;
+    width:100%; padding:9px 4px; border-radius:9px; border:1px solid var(--azul-borde);
+    font-size:16px; outline:none; color:var(--azul); font-weight:700;
     text-align:center; background:#fff;
   }
   .nuevo-prod-item input:focus{ border-color:var(--azul); }
@@ -548,12 +554,12 @@
       <label>Notas</label>
       <input type="text" id="nm-notas" placeholder="Opcional">
 
-      <label>Usuario</label>
-      <input type="text" id="nm-usuario" readonly>      
-
       <div class="nuevo-productos-title">Productos</div>
       <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
       <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
+
+      <label>Usuario</label>
+      <input type="text" id="nm-usuario" readonly>
     </div>
     <div class="nuevo-error" id="nuevo-error"></div>
     <div class="nuevo-footer">
@@ -1121,8 +1127,8 @@ function renderMovimientos(filtro){
         <td>${mov['Sección'] || '-'}</td>
         <td>${mov['Concepto'] || '-'}</td>
         <td>${mov['Notas'] || '-'}</td>
-        <td>${mov['Usuario'] || '-'}</td>
         ${celdasProducto}
+        <td>${mov['Usuario'] || '-'}</td>
       </tr>`;
     }).join('');
 
@@ -1139,8 +1145,9 @@ function renderMovimientos(filtro){
         <table class="mov">
           <thead>
             <tr>
-              <th>Fecha</th><th>Sección</th><th>Concepto</th><th>Notas</th><th>Usuario</th>
+              <th>Fecha</th><th>Sección</th><th>Concepto</th><th>Notas</th>
               ${headerProductos}
+              <th>Usuario</th>
             </tr>
           </thead>
           <tbody>${filas}</tbody>
@@ -1198,6 +1205,8 @@ function render(){
   resumenControlsEl.classList.toggle('hidden', currentTab !== 'resumen');
   const filtro = currentTab === 'movimientos' ? searchEl.value.trim() : '';
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
+  fabNuevo.classList.toggle('grid-mode', currentTab === 'movimientos');
+  fabAcciones.classList.toggle('grid-mode', currentTab === 'movimientos');
   if(currentTab === 'stock'){
     headerTitle.textContent = 'Stock';
     renderStock(filtro);
