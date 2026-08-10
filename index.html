@@ -1487,8 +1487,12 @@ btnGuardar.addEventListener('click', async () => {
   const seccion = nmSeccion.value.trim();
   const concepto = nmConcepto.value.trim();
 
-  if(!seccion && !concepto){
-    nuevoError.textContent = 'Completá al menos Sección o Concepto.';
+  if(!seccion){
+    nuevoError.textContent = 'Seleccioná una sección.';
+    return;
+  }
+  if(!concepto){
+    nuevoError.textContent = 'Completá el concepto.';
     return;
   }
 
