@@ -550,6 +550,9 @@
       <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
       <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
 
+      <label>Cajas total</label>
+      <input type="text" id="nm-cajas-total" readonly>
+
       <label>Usuario</label>
       <input type="text" id="nm-usuario" readonly>
     </div>
@@ -1013,6 +1016,18 @@ function calcularResumen(){
 // Medallones, Formitas o Tiritas)
 const TROZADO_PRODUCTOS = ['Cuarto', 'Filet de Muslo', 'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida', 'Carcaza'];
 
+// Calcula el total en cajas equivalentes a partir de un objeto con cantidades
+// por producto (sirve tanto para un movimiento de la planilla como para los
+// valores tipeados en el formulario). No se guarda en ningún lado: se
+// recalcula siempre a partir de las cantidades por producto.
+function calcularCajasTotal(valores){
+  const cajones = parseFloat(valores['Cajones de Pollo']) || 0;
+  const unidades = parseFloat(valores['Unidades de Pollo']) || 0;
+  let trozado = 0;
+  TROZADO_PRODUCTOS.forEach(p => { trozado += parseFloat(valores[p]) || 0; });
+  return cajones + (unidades / 8) + (trozado / 20);
+}
+
 function calcularCajasPollo(resumen){
   const cajones = resumen['Cajones de Pollo'] || {entradas:0, salidas:0, total:0};
   const unidades = resumen['Unidades de Pollo'] || {entradas:0, salidas:0, total:0};
@@ -1118,12 +1133,20 @@ function renderMovimientos(filtro){
         return `<td class="num ${cls}">${signo}${formatNum(val)}</td>`;
       }).join('');
 
+      const cajasTotal = calcularCajasTotal(mov);
+      const cajasCls = cajasTotal === 0 ? 'zero' : (cajasTotal > 0 ? 'pos' : 'neg');
+      const cajasSigno = cajasTotal > 0 ? '+' : '';
+      const celdaCajasTotal = cajasTotal === 0
+        ? `<td class="num zero">-</td>`
+        : `<td class="num ${cajasCls}">${cajasSigno}${formatNum(cajasTotal)}</td>`;
+
       return `<tr class="mov-row" data-id="${mov['ID'] || ''}">
         <td class="fecha">${formatFecha(mov[CONFIG.CAMPO_FECHA])}</td>
         <td>${mov['Sección'] || '-'}</td>
         <td>${mov['Concepto'] || '-'}</td>
         <td>${mov['Notas'] || '-'}</td>
         ${celdasProducto}
+        ${celdaCajasTotal}
         <td>${mov['Usuario'] || '-'}</td>
       </tr>`;
     }).join('');
@@ -1143,6 +1166,7 @@ function renderMovimientos(filtro){
             <tr>
               <th>Fecha</th><th>Sección</th><th>Concepto</th><th>Notas</th>
               ${headerProductos}
+              <th>Cajas total</th>
               <th>Usuario</th>
             </tr>
           </thead>
@@ -1423,9 +1447,26 @@ function formatearCantidad(valorCrudo){
   return resultado;
 }
 
+const nmCajasTotal = document.getElementById('nm-cajas-total');
+
+// Recalcula el campo "Cajas total" del formulario en vivo, leyendo lo
+// tipeado en cada input de producto (usa coma como separador decimal, igual
+// que se muestran los inputs).
+function actualizarCajasTotalForm(){
+  const valores = {};
+  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+    const val = inp.value.trim();
+    if(val !== ''){
+      valores[inp.dataset.producto] = limpiarCantidadParaEnvio(val).replace(',', '.');
+    }
+  });
+  nmCajasTotal.value = formatNum(calcularCajasTotal(valores));
+}
+
 document.querySelectorAll('.nm-prod-input').forEach(inp => {
   inp.addEventListener('input', () => {
     inp.value = formatearCantidad(inp.value);
+    actualizarCajasTotalForm();
   });
 });
 
@@ -1479,6 +1520,7 @@ function abrirNuevoModal(mov, modoEditar){
   document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
     inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
   });
+  actualizarCajasTotalForm();
 
   nuevoError.textContent = '';
   btnGuardar.disabled = false;
