@@ -836,6 +836,14 @@ function esRespuestaSinPermiso(data){
   }
   return false;
 }
+
+// El servidor devuelve este mensaje cuando se intenta editar/eliminar una
+// fila cuyo ID ya no existe en la planilla — típicamente porque otra
+// persona (u otro dispositivo) la borró o la editó justo antes. En ese
+// caso conviene refrescar solo, en vez de mostrar un error genérico.
+function esRespuestaNoEncontrado(data){
+  return !!(data && typeof data.error === 'string' && data.error.indexOf('No se encontró el registro') !== -1);
+}
 /* =============================================== */
 
 async function cargarDatos(){
@@ -1316,6 +1324,9 @@ const fabEditar = document.getElementById('fab-editar');
 const fabCopiar = document.getElementById('fab-copiar');
 const fabEliminar = document.getElementById('fab-eliminar');
 let filaSeleccionadaId = null;
+// Movimiento original que se está editando (para poder conservar datos
+// como "Fecha Real" al actualizar la lista en memoria sin recargar todo).
+let movEnEdicion = null;
 
 function actualizarSeleccionUI(){
   let encontrada = false;
@@ -1382,12 +1393,22 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
         idAEliminar = null;
         return;
       }
+      if(esRespuestaNoEncontrado(data)){
+        confirmEliminarModal.classList.add('hidden');
+        idAEliminar = null;
+        alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
+        await cargarDatos();
+        return;
+      }
       throw new Error(data.error);
     }
 
+    movimientos = movimientos.filter(m => String(m['ID']) !== String(idBorrar));
+    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+
     confirmEliminarModal.classList.add('hidden');
     idAEliminar = null;
-    await cargarDatos();
+    render();
   }catch(err){
     alert('No se pudo eliminar: ' + err.message);
   }finally{
@@ -1506,6 +1527,7 @@ function numeroAInputStr(num){
 
 function abrirNuevoModal(mov, modoEditar){
   const precargar = !!mov;
+  movEnEdicion = (precargar && modoEditar) ? mov : null;
   nmEditId.value = (precargar && modoEditar) ? (mov['ID'] || '') : '';
   nuevoTitulo.textContent = modoEditar ? 'Editar movimiento' : (precargar ? 'Copiar movimiento' : 'Nuevo movimiento');
 
@@ -1531,6 +1553,34 @@ function abrirNuevoModal(mov, modoEditar){
 
 function cerrarNuevoModal(){
   nuevoModal.classList.add('hidden');
+}
+
+// Construye el objeto de movimiento con las mismas claves y el mismo
+// formato de fecha (ISO) que devuelve el Google Sheet, a partir de lo que
+// se acaba de guardar. Se usa para actualizar la lista en memoria sin
+// tener que pedirle todo de nuevo al servidor.
+function construirMovimientoLocal(payload, idFinal, movOriginal){
+  const mov = {
+    'ID': idFinal,
+    'Usuario': payload.usuario,
+    'Fecha Real': (movOriginal && movOriginal['Fecha Real']) || new Date().toISOString(),
+    'Fecha': payload.fecha
+      ? new Date(payload.fecha + 'T00:00:00').toISOString()
+      : ((movOriginal && movOriginal['Fecha']) || new Date().toISOString()),
+    'Sección': payload.seccion,
+    'Concepto': payload.concepto,
+    'Notas': payload.notas
+  };
+  CONFIG.PRODUCTOS.forEach(p => {
+    const val = payload.productos ? payload.productos[p] : undefined;
+    if(val === undefined || val === null || val === ''){
+      mov[p] = '';
+    }else{
+      const num = parseFloat(String(val).replace(',', '.'));
+      mov[p] = isNaN(num) ? '' : num;
+    }
+  });
+  return mov;
 }
 
 fabNuevo.addEventListener('click', () => abrirNuevoModal());
@@ -1597,11 +1647,27 @@ btnGuardar.addEventListener('click', async () => {
         cerrarNuevoModal();
         return;
       }
+      if(esRespuestaNoEncontrado(data)){
+        cerrarNuevoModal();
+        alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
+        await cargarDatos();
+        return;
+      }
       throw new Error(data.error);
     }
 
+    const idFinal = (data && data.id) ? data.id : nmEditId.value;
+    const movGuardado = construirMovimientoLocal(payload, idFinal, movEnEdicion);
+    const idx = movimientos.findIndex(m => String(m['ID']) === String(idFinal));
+    if(idx !== -1){
+      movimientos[idx] = movGuardado;
+    }else{
+      movimientos.push(movGuardado);
+    }
+    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+
     cerrarNuevoModal();
-    await cargarDatos();
+    render();
   }catch(err){
     nuevoError.textContent = 'No se pudo guardar: ' + err.message;
   }finally{
