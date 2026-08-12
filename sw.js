@@ -1,5 +1,5 @@
 /* Service Worker - Stock Don Picconi */
-const CACHE_NAME = 'stock-dp-v15';
+const CACHE_NAME = 'stock-dp-v16';
 const APP_SHELL = [
   './',
   './index.html',
