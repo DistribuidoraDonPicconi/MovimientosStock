@@ -846,12 +846,34 @@ function esRespuestaNoEncontrado(data){
 }
 /* =============================================== */
 
+// Espera cierta cantidad de milisegundos (para el reintento de abajo).
+function esperar_(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Hace el fetch al Apps Script y, si falla (por ejemplo el clásico 404
+// transitorio que a veces devuelve Google en los Web Apps, sin relación
+// con el código), espera un instante y reintenta UNA vez antes de darse
+// por vencido. Esto es lo mismo que lograr forzando el refresh a mano,
+// pero automático.
+async function fetchConReintento_(url, opciones){
+  try{
+    const resp = await fetch(url, opciones);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp;
+  }catch(err){
+    await esperar_(1200);
+    const resp = await fetch(url, opciones);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp;
+  }
+}
+
 async function cargarDatos(){
   btnRefresh.classList.add('spinning');
   try{
     const url = CONFIG.APPS_SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken || '');
-    const resp = await fetch(url, {cache:'no-store'});
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    const resp = await fetchConReintento_(url, {cache:'no-store'});
     const data = await resp.json();
     if(data && data.error){
       movimientos = [];
