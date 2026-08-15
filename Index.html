@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Stock</title>
+
+<!-- PWA: instalable en el celular -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16305c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stock DP">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+  :root{
+    --azul-osc: #16305c;
+    --azul: #2a5cc9;
+    --azul-suave: #eef3fc;
+    --azul-borde: #d7e2f5;
+    --ambar: #b5651d;
+    --fondo: #f4f7fc;
+    --linea: #e7ecf5;
+    --verde: #1f8a4c;
+    --rojo: #c0392b;
+    --texto-tenue: #7c8aa3;
+    --app-max-width: 520px;
+  }
+  /* En pantallas grandes (PC), la pestaña Movimientos estira SOLO la
+     tabla (no el header, ni las pestañas, ni el buscador) para
+     aprovechar el ancho de pantalla. El resto de la app mantiene
+     siempre su tamaño original de 520px. En celular no aplica nada
+     de esto. */
+  @media (min-width:900px){
+    main.grid-mode{
+      position:relative;
+      left:50%;
+      width:min(1800px, 96vw);
+      transform:translateX(-50%);
+    }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--fondo);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:#1a1f2b;
+  }
+  #app{
+    display:flex; flex-direction:column;
+    height:100vh; height:100dvh;
+    max-width:var(--app-max-width); margin:0 auto;
+    background:var(--fondo);
+    transition:max-width .2s ease;
+  }
+
+  /* Header */
+  header{
+    padding:18px 20px 4px;
+    flex-shrink:0;
+  }
+  header .top-row{
+    display:flex; align-items:flex-start; justify-content:space-between;
+  }
+  header h1{
+    font-size:27px; margin:0; color:#111624; font-weight:800;
+    letter-spacing:-0.4px;
+  }
+  header .sub{
+    font-size:14px; color:var(--azul); font-weight:700; margin-top:4px;
+    letter-spacing:0.2px;
+  }
+  .icon-btn{
+    background:#fff; border:1px solid var(--azul-borde); padding:11px; cursor:pointer;
+    color:var(--azul); display:flex; align-items:center; justify-content:center;
+    border-radius:12px; box-shadow:0 1px 2px rgba(22,48,92,0.06);
+  }
+  .icon-btn.logout{ color:var(--rojo); }
+  .icon-btn:active{ background:var(--azul-suave); }
+  .icon-btn svg{ width:19px; height:19px; }
+  .icon-btn.spinning svg{ animation: spin 0.8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  /* Pill tabs */
+  .pill-tabs{
+    display:flex; gap:4px;
+    background:#fff; border:1px solid var(--azul-borde);
+    border-radius:14px; padding:4px;
+    margin:14px 20px 0;
+    flex-shrink:0;
+    box-shadow:0 1px 3px rgba(22,48,92,0.05);
+  }
+  .pill-tabs button{
+    flex:1; border:none; background:transparent; cursor:pointer;
+    padding:11px 8px; border-radius:11px;
+    font-size:15px; font-weight:700; color:var(--texto-tenue);
+    transition:background .15s, color .15s;
+  }
+  .pill-tabs button.active{
+    background:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
+
+  /* Search */
+  .search-wrap{ padding:12px 20px 6px; flex-shrink:0; }
+  .search-wrap input{
+    width:100%; padding:11px 13px; border-radius:11px; border:1px solid var(--azul-borde);
+    background:#fff; font-size:16px; outline:none; color:#1a1f2b;
+  }
+  .search-wrap input:focus{ border-color:var(--azul); }
+  .search-wrap input::placeholder{ color:#a7b2c6; }
+
+  /* Controles de la pestaña Resumen */
+  .resumen-controls{ padding:14px 20px 6px; flex-shrink:0; }
+  .resumen-controls.hidden{ display:none; }
+  .resumen-rango{ display:flex; gap:8px; }
+  .resumen-rango-btn{
+    flex:1; border:1px solid var(--azul-borde); background:#fff; cursor:pointer;
+    padding:10px 6px; border-radius:11px;
+    font-size:13.5px; font-weight:700; color:var(--texto-tenue);
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .resumen-rango-btn.active{
+    background:#5f8fe0; color:#fff; border-color:#5f8fe0;
+  }
+  .resumen-personalizado{
+    display:flex; gap:10px; margin-top:10px;
+  }
+  .resumen-personalizado.hidden{ display:none; }
+  .resumen-fecha-campo{ flex:1; }
+  .resumen-seccion-campo{ margin-top:10px; }
+  .resumen-filtros-fila{ display:flex; gap:10px; }
+  .resumen-filtros-fila .resumen-seccion-campo{ flex:1; }
+  .resumen-fecha-campo label, .resumen-seccion-campo label{
+    display:block; font-size:12.5px; font-weight:700; color:var(--azul-osc); margin-bottom:5px;
+  }
+  .resumen-fecha-campo input, .resumen-seccion-campo select{
+    width:100%; padding:10px 12px; border-radius:11px; border:1px solid var(--azul-borde);
+    background:#fff; font-size:15px; outline:none; color:#1a1f2b;
+  }
+  .resumen-fecha-campo input:focus, .resumen-seccion-campo select:focus{ border-color:var(--azul); }
+
+  /* Content */
+  main{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 20px 24px; }
+  /* En la pestaña Movimientos, main deja de scrollear: la tabla scrollea sola
+     (así el encabezado puede quedar fijo con position:sticky) */
+  main.grid-mode{
+    display:flex; flex-direction:column; overflow:hidden; padding-bottom:12px;
+  }
+  main.grid-mode .mov-table-wrap{ flex:1; min-height:0; display:flex; flex-direction:column; }
+
+  .state-msg{ padding:40px 20px; text-align:center; color:var(--texto-tenue); font-size:14px; }
+  .state-msg.error{ color:var(--rojo); }
+
+  /* Tabla Stock Actual */
+  .stock-table-wrap{
+    border:1px solid var(--linea); border-radius:14px; overflow:hidden;
+    background:#fff; box-shadow:0 1px 2px rgba(22,48,92,0.04);
+  }
+  table.stock{ border-collapse:collapse; width:100%; }
+  table.stock td{
+    padding:9px 12px; border-bottom:1px solid var(--linea); border-right:1px solid var(--linea);
+    vertical-align:middle; text-align:center;
+  }
+  table.stock td:last-child{ border-right:none; }
+  table.stock tr:last-child td{ border-bottom:none; }
+  table.stock tr:nth-child(even){ background:#fafbfd; }
+  table.stock td.prod{ font-size:16px; font-weight:700; color:#1a1f2b; }
+  table.stock td.stock{ font-size:16px; font-weight:800; color:#1a1f2b; width:92px; white-space:nowrap; }
+  table.stock td.stock.pos{ color:#1a1f2b; }
+  table.stock td.stock.neg{ color:var(--rojo); }
+  table.stock td.fecha{ font-size:13.5px; font-weight:600; color:var(--azul-osc); width:80px; white-space:nowrap; }
+  table.stock th{
+    text-align:center; font-size:12.5px; font-weight:800; color:var(--texto-tenue);
+    text-transform:uppercase; letter-spacing:0.3px;
+    padding:9px 12px; border-bottom:1.5px solid var(--linea); border-right:1px solid var(--linea);
+    background:#fafbfd;
+  }
+  table.stock th:last-child{ border-right:none; }
+  table.stock th.stock{ width:92px; }
+  table.stock th.fecha{ width:80px; }
+  table.stock td.entradas{ font-size:15px; font-weight:700; color:#1f9d55; width:78px; white-space:nowrap; }
+  table.stock td.salidas{ font-size:15px; font-weight:700; color:var(--rojo); width:78px; white-space:nowrap; }
+  table.stock td.total{ font-size:16px; font-weight:800; color:#1a1f2b; width:78px; white-space:nowrap; }
+  table.stock th.entradas, table.stock th.salidas, table.stock th.total{ width:78px; }
+
+  /* Tabla de Resumen: misma estructura que Stock Actual pero con fuente más
+     chica, para que entren los números de Entradas/Salidas/Total sin cortarse */
+  table.resumen-table td{ padding:7px 6px; }
+  table.resumen-table td.prod{ font-size:13.5px; }
+  table.resumen-table td.entradas,
+  table.resumen-table td.salidas,
+  table.resumen-table td.total{ font-size:13px; width:68px; }
+  table.resumen-table th{ font-size:11px; padding:7px 6px; }
+  table.resumen-table th.entradas,
+  table.resumen-table th.salidas,
+  table.resumen-table th.total{ width:68px; }
+  table.resumen-table tr.cajas-pollo-row{ background:#eef3fc; }
+  table.resumen-table tr.cajas-pollo-row td{ border-top:1.5px solid var(--azul-borde); }
+  table.resumen-table tr.cajas-pollo-row td.prod{ font-weight:800; color:var(--azul-osc); }
+  table.resumen-table tr.cajas-pollo-row td.entradas,
+  table.resumen-table tr.cajas-pollo-row td.salidas,
+  table.resumen-table tr.cajas-pollo-row td.total{ font-weight:800; }
+
+  /* Lista Movimientos */
+  /* Tabla Movimientos */
+  .mov-table-wrap{
+    border:1.5px solid var(--azul); border-radius:14px; overflow:hidden;
+    background:#fff; box-shadow:0 1px 3px rgba(22,48,92,0.08);
+  }
+  .mov-scroll{
+    overflow:auto; -webkit-overflow-scrolling:touch;
+  }
+  table.mov{ border-collapse:separate; border-spacing:0; width:100%; min-width:800px; }
+  table.mov th{
+    position:sticky; top:0; background:#fff; z-index:1;
+    text-align:center; font-size:16px; color:#1a1f2b; font-weight:800;
+    padding:14px 18px; border-bottom:2px solid var(--azul); white-space:nowrap;
+    border-right:1px solid var(--linea);
+    box-shadow:0 2px 4px rgba(22,48,92,0.15);
+  }
+  table.mov th:last-child{ border-right:none; }
+  table.mov td{
+    padding:14px 18px; font-size:16.5px; white-space:nowrap; text-align:center;
+    border-bottom:1px solid var(--linea); border-right:1px solid var(--linea);
+    color:#1a1f2b;
+  }
+  table.mov td:last-child{ border-right:none; }
+  table.mov td.fecha{ color:var(--azul); font-weight:700; }
+  table.mov td.num{ text-align:center; font-weight:700; }
+  table.mov td.num.pos{ color:var(--verde); }
+  table.mov td.num.neg{ color:var(--rojo); }
+  table.mov td.num.zero{ color:#c3cad9; font-weight:500; }
+  table.mov tbody tr:nth-child(even){ background:#fafbfd; }
+  table.mov tbody tr.mov-row{ cursor:pointer; }
+  table.mov tbody tr.mov-row:active{ background:var(--azul-suave); }
+  table.mov tbody tr.mov-row.selected td{ background:var(--azul-suave); }
+  table.mov tbody tr.mov-row.selected td.fecha{ color:var(--azul-osc); }
+
+  /* Pantalla de bloqueo (login con Google) */
+  #lock-screen{
+    position:fixed; inset:0; z-index:100;
+    background:var(--fondo);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  #lock-screen.hidden{ display:none; }
+  .lock-box{
+    width:100%; max-width:320px; text-align:center;
+    background:#fff; border:1px solid var(--azul-borde);
+    border-radius:22px; padding:34px 26px 28px;
+    box-shadow:0 8px 24px rgba(22,48,92,0.1);
+  }
+  .lock-box .lock-logo{
+    width:84px; height:84px; border-radius:20px;
+    overflow:hidden;
+    margin:0 auto 20px;
+    box-shadow:0 4px 14px rgba(22,48,92,0.22);
+  }
+  .lock-box .lock-logo img{
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .lock-box h2{
+    color:#111624; font-size:23px; margin:0 0 6px; font-weight:800;
+  }
+  .lock-box p{
+    color:var(--azul-osc); font-size:15.5px; font-weight:600; margin:0 0 24px;
+  }
+  .lock-box #google-btn{
+    display:flex; justify-content:center; margin-bottom:14px; min-height:44px;
+  }
+  .lock-box .lock-error{
+    color:var(--rojo); font-size:14px; font-weight:600; margin-top:14px; min-height:16px;
+  }
+  .lock-box .lock-loading{
+    color:var(--texto-tenue); font-size:14px; margin-top:6px; min-height:16px;
+  }
+
+  /* Modal de confirmación (cerrar sesión) */
+  #confirm-modal{
+    position:fixed; inset:0; z-index:200;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  #confirm-modal.hidden{ display:none; }
+  #confirm-eliminar-modal{
+    position:fixed; inset:0; z-index:200;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px;
+  }
+  #confirm-eliminar-modal.hidden{ display:none; }
+  .confirm-box{
+    width:100%; max-width:320px;
+    background:#fff; border-radius:18px;
+    padding:26px 22px 20px;
+    text-align:center;
+    box-shadow:0 12px 30px rgba(17,22,36,0.25);
+  }
+  .confirm-box .confirm-icon{
+    width:52px; height:52px; border-radius:50%;
+    background:#fdecea; color:var(--rojo);
+    display:flex; align-items:center; justify-content:center;
+    margin:0 auto 14px;
+  }
+  .confirm-box .confirm-icon svg{ width:24px; height:24px; }
+  .confirm-box h3{
+    font-size:17px; margin:0 0 6px; color:#111624; font-weight:800;
+  }
+  .confirm-box p{
+    font-size:14px; color:var(--texto-tenue); margin:0 0 20px; line-height:1.4;
+  }
+  .confirm-box .confirm-actions{
+    display:flex; gap:10px;
+  }
+  .confirm-box button{
+    flex:1; padding:12px; border-radius:12px; border:none;
+    font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .confirm-box .btn-cancelar{
+    background:var(--azul-suave); color:var(--azul-osc);
+  }
+  .confirm-box .btn-cancelar:active{ background:var(--azul-borde); }
+  .confirm-box .btn-confirmar{
+    background:var(--rojo); color:#fff;
+  }
+  .confirm-box .btn-confirmar:active{ opacity:0.85; }
+
+  /* Botón flotante (+) para nuevo movimiento */
+  .fab{
+    position:fixed; bottom:28px; right:22px;
+    width:56px; height:56px; border-radius:50%;
+    background:var(--azul); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 16px rgba(42,92,201,0.45);
+    cursor:pointer; z-index:50;
+  }
+  .fab.hidden{ display:none; }
+  .fab svg{ width:26px; height:26px; }
+
+  /* Botones flotantes "Copiar" y "Editar", aparecen arriba del + al seleccionar una fila */
+  .fab-acciones{
+    position:fixed; bottom:96px; right:22px;
+    display:flex; flex-direction:column; gap:12px; z-index:50;
+  }
+  .fab-acciones.hidden{ display:none; }
+  .fab-accion{
+    width:56px; height:56px; border-radius:50%;
+    background:var(--azul); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 16px rgba(42,92,201,0.45);
+    cursor:pointer;
+  }
+  .fab-accion.copiar{ background:#5a6787; box-shadow:0 6px 16px rgba(90,103,135,0.4); }
+  .fab-accion.editar{ background:#5f8fe0; box-shadow:0 6px 16px rgba(95,143,224,0.4); }
+  .fab-accion.eliminar{ background:#f0908d; box-shadow:0 6px 16px rgba(240,144,141,0.4); }
+  .fab-accion svg{ width:24px; height:24px; }
+  .fab-accion:active{ opacity:0.88; }
+  .fab:active{ transform:scale(0.94); }
+
+  /* Modal Nuevo Movimiento */
+  #nuevo-modal{
+    position:fixed; inset:0; z-index:150;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #nuevo-modal.hidden{ display:none; }
+  .nuevo-box{
+    width:100%; max-width:520px; max-height:88vh;
+    background:#fff; border-radius:20px 20px 0 0;
+    display:flex; flex-direction:column;
+    box-shadow:0 -8px 24px rgba(17,22,36,0.25);
+  }
+  .nuevo-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 20px 14px; border-bottom:1px solid var(--linea); flex-shrink:0;
+  }
+  .nuevo-header h3{ margin:0; font-size:19px; font-weight:800; color:#111624; }
+  .nuevo-close{
+    background:var(--azul-suave); border:none; color:var(--azul-osc);
+    width:30px; height:30px; border-radius:50%; font-size:18px; line-height:1;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .nuevo-body{
+    padding:16px 20px; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  .nuevo-body label{
+    display:block; font-size:15.5px; font-weight:800; color:var(--azul-osc);
+    margin:14px 0 6px;
+  }
+  .nuevo-body label:first-child{ margin-top:0; }
+  .nuevo-body input[type="text"],
+  .nuevo-body input[type="date"]{
+    width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
+    font-size:17px; outline:none; color:#1a1f2b; background:#fff;
+  }
+  .nuevo-body input:focus{ border-color:var(--azul); }
+  .nuevo-body input[readonly]{
+    background:var(--azul-suave); color:var(--texto-tenue); cursor:default;
+  }
+  .nuevo-body input[readonly]:focus{ border-color:var(--azul-borde); }
+
+  /* Botones de Sección */
+  .nm-seccion-grid{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
+  }
+  .nm-seccion-btn{
+    padding:12px 8px; border-radius:11px; border:1.5px solid var(--azul-borde);
+    background:#fff; color:#3a4560; font-size:15.5px; font-weight:700;
+    cursor:pointer; text-align:center;
+  }
+  .nm-seccion-btn.selected{
+    background:var(--azul); border-color:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
+  .nm-seccion-btn:active{ opacity:0.85; }
+  .nuevo-productos-title{
+    font-size:15.5px; font-weight:800; color:var(--azul-osc);
+    margin:20px 0 8px; padding-top:14px; border-top:1px solid var(--linea);
+  }
+  .nuevo-productos-grid{
+    display:grid; gap:10px;
+  }
+  .nuevo-productos-grid.principales{
+    grid-template-columns:1fr 1fr;
+    margin-bottom:10px;
+  }
+  .nuevo-productos-grid.resto{
+    grid-template-columns:1fr 1fr 1fr;
+  }
+  .nuevo-prod-item{
+    background:#fdfbf3; border:1px solid #ece4c8; border-radius:14px;
+    padding:12px 8px 11px; text-align:center;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .nuevo-prod-item label{
+    font-size:13.5px; font-weight:800; color:#1a1f2b;
+    margin:0 0 8px; line-height:1.25;
+  }
+  .nuevo-prod-item input{
+    width:100%; padding:9px 4px; border-radius:9px; border:1px solid var(--azul-borde);
+    font-size:16px; outline:none; color:var(--azul); font-weight:700;
+    text-align:center; background:#fff;
+  }
+  .nuevo-prod-item input:focus{ border-color:var(--azul); }
+  .nuevo-prod-item input::placeholder{ color:#b7c0d4; font-weight:500; }
+  .nuevo-footer{
+    display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--linea);
+    flex-shrink:0; background:#fff;
+  }
+  .nuevo-footer button{
+    flex:1; padding:13px; border-radius:12px; border:none;
+    font-size:15px; font-weight:800; cursor:pointer;
+  }
+  .nuevo-footer .btn-cancelar{ background:var(--azul-suave); color:var(--azul-osc); }
+  .nuevo-footer .btn-cancelar:active{ background:var(--azul-borde); }
+  .nuevo-footer .btn-guardar{ background:var(--azul); color:#fff; }
+  .nuevo-footer .btn-guardar:active{ opacity:0.88; }
+  .nuevo-footer .btn-guardar:disabled{ opacity:0.6; }
+  .nuevo-error{
+    color:var(--rojo); font-size:13px; text-align:center; padding:0 20px 4px;
+  }
+</style>
+</head>
+<body>
+
+<div id="lock-screen">
+  <div class="lock-box">
+    <div class="lock-logo"><img src="icon-512.png" alt="Stock DP"></div>
+    <h2>Acceso restringido</h2>
+    <p>Iniciá sesión con tu cuenta de Google</p>
+    <div id="google-btn"></div>
+    <div class="lock-loading" id="lock-loading"></div>
+    <div class="lock-error" id="lock-error"></div>
+  </div>
+</div>
+
+<div id="confirm-modal" class="hidden">
+  <div class="confirm-box">
+    <div class="confirm-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    </div>
+    <h3>Cerrar sesión</h3>
+    <p>Vas a tener que iniciar sesión con Google de nuevo para volver a entrar en este celular.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancelar" id="confirm-cancelar">Cancelar</button>
+      <button class="btn-confirmar" id="confirm-aceptar">Cerrar sesión</button>
+    </div>
+  </div>
+</div>
+
+<div id="confirm-eliminar-modal" class="hidden">
+  <div class="confirm-box">
+    <div class="confirm-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </div>
+    <h3>Eliminar movimiento</h3>
+    <p>Esta acción borra el movimiento de forma permanente, tanto de la app como del Google Sheet. No se puede deshacer.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancelar" id="confirm-eliminar-cancelar">Cancelar</button>
+      <button class="btn-confirmar" id="confirm-eliminar-aceptar">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div id="fab-acciones" class="fab-acciones hidden">
+  <button id="fab-copiar" class="fab-accion copiar" aria-label="Copiar movimiento">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+  </button>
+  <button id="fab-editar" class="fab-accion editar" aria-label="Editar movimiento">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+  </button>
+  <button id="fab-eliminar" class="fab-accion eliminar" aria-label="Eliminar movimiento">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+  </button>
+</div>
+
+<button id="fab-nuevo" class="fab hidden" aria-label="Nuevo movimiento">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<div id="nuevo-modal" class="hidden">
+  <div class="nuevo-box">
+    <div class="nuevo-header">
+      <h3 id="nuevo-titulo">Nuevo movimiento</h3>
+      <button class="nuevo-close" id="nuevo-cerrar" aria-label="Cerrar">×</button>
+    </div>
+    <div class="nuevo-body">
+      <input type="hidden" id="nm-edit-id">
+	  
+	  <label>Fecha</label>
+      <input type="date" id="nm-fecha">
+
+      <label>Sección</label>
+      <div class="nm-seccion-grid" id="nm-seccion-grid"></div>
+      <input type="hidden" id="nm-seccion">
+
+      <label>Concepto</label>
+      <input type="text" id="nm-concepto" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
+
+      <label>Notas</label>
+      <input type="text" id="nm-notas" placeholder="Opcional">
+
+      <div class="nuevo-productos-title">Productos</div>
+      <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
+      <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
+
+      <label>Cajas total</label>
+      <input type="text" id="nm-cajas-total" readonly>
+
+      <label>Usuario</label>
+      <input type="text" id="nm-usuario" readonly>
+    </div>
+    <div class="nuevo-error" id="nuevo-error"></div>
+    <div class="nuevo-footer">
+      <button class="btn-cancelar" id="nuevo-cancelar-btn">Cancelar</button>
+      <button class="btn-guardar" id="nuevo-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+
+  <header>
+    <div class="top-row">
+      <div>
+        <h1 id="header-title">Stock</h1>
+        <div class="sub">Distribuidora Don Picconi</div>
+      </div>
+      <div style="display:flex; gap:22px;">
+        <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+        <button class="icon-btn logout" id="btn-logout" aria-label="Cerrar sesión">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="pill-tabs">
+    <button id="tab-stock" data-tab="stock" class="active">Stock Actual</button>
+    <button id="tab-mov" data-tab="movimientos">Movimientos</button>
+    <button id="tab-resumen" data-tab="resumen">Resumen</button>
+  </div>
+
+  <div class="resumen-controls hidden" id="resumen-controls">
+    <div class="resumen-rango">
+      <button id="rango-esta-semana" class="resumen-rango-btn active" data-rango="esta-semana">Esta semana</button>
+      <button id="rango-semana-pasada" class="resumen-rango-btn" data-rango="semana-pasada">Semana pasada</button>
+      <button id="rango-personalizado" class="resumen-rango-btn" data-rango="personalizado">Otro rango</button>
+    </div>
+    <div class="resumen-personalizado hidden" id="resumen-personalizado">
+      <div class="resumen-fecha-campo">
+        <label for="resumen-desde">Desde</label>
+        <input type="date" id="resumen-desde">
+      </div>
+      <div class="resumen-fecha-campo">
+        <label for="resumen-hasta">Hasta</label>
+        <input type="date" id="resumen-hasta">
+      </div>
+    </div>
+    <div class="resumen-filtros-fila">
+      <div class="resumen-seccion-campo">
+        <label for="resumen-seccion">Sección</label>
+        <select id="resumen-seccion">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div class="resumen-seccion-campo">
+        <label for="resumen-concepto">Concepto</label>
+        <select id="resumen-concepto">
+          <option value="">Todos</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="search-wrap" id="search-wrap">
+    <input type="text" id="search" placeholder="Buscar producto...">
+  </div>
+
+  <main id="main">
+    <div class="state-msg" id="loading">Cargando datos...</div>
+  </main>
+
+</div>
+
+<script>
+/* ============== CONFIGURACIÓN ============== */
+const CONFIG = {
+  // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzxm0w6tL_dIVYqiMp4b4wRTjoLtICDap1us1p4WVwoRWpsZqM-zC7BI4ROC6MJ_lV-BQ/exec',
+
+  // Client ID de OAuth de Google (tiene que ser el mismo que en Código.gs)
+  GOOGLE_CLIENT_ID: '922655936984-eb35rn1hu1855l6b4939qvvl286h7l10.apps.googleusercontent.com',
+
+  // Rol de cada persona permitida (tiene que coincidir con el ROLES de Código.gs).
+  // 'admin': accede a todo (agregar, copiar, editar, eliminar).
+  // 'colaborador': solo puede agregar movimientos nuevos.
+  // 'sin_permisos': solo puede ver, ningún botón de acción.
+  ROLES: {
+    'nicolaspicconi@gmail.com': 'admin',
+    'santinopicconi@gmail.com': 'colaborador',
+	"distribuidoradonpicconi@gmail.com": "colaborador",
+	"alejandropicconi@gmail.com": "sin_permisos",
+	"jj978536@gmail.com": "sin_permisos",
+    'grandoliosergio109@gmail.com': 'sin_permisos'
+  },
+
+  // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
+  CAMPO_FECHA: 'Fecha',
+
+  // Columnas de producto, en el orden en que querés que aparezcan
+  PRODUCTOS: [
+    'Cajones de Pollo', 'Unidades de Pollo', 'Cuarto', 'Filet de Muslo',
+    'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida',
+    'Carcaza', 'Medallones', 'Formitas', 'Tiritas'
+  ]
+};
+/* ============================================= */
+
+let movimientos = [];
+let currentTab = 'stock';
+
+const mainEl = document.getElementById('main');
+const searchEl = document.getElementById('search');
+const searchWrapEl = document.getElementById('search-wrap');
+const headerTitle = document.getElementById('header-title');
+const btnRefresh = document.getElementById('btn-refresh');
+const appEl = document.getElementById('app');
+const resumenControlsEl = document.getElementById('resumen-controls');
+const resumenPersonalizadoEl = document.getElementById('resumen-personalizado');
+const resumenDesdeEl = document.getElementById('resumen-desde');
+const resumenHastaEl = document.getElementById('resumen-hasta');
+const resumenSeccionEl = document.getElementById('resumen-seccion');
+const resumenConceptoEl = document.getElementById('resumen-concepto');
+let resumenRango = 'esta-semana';
+
+function formatFecha(valor){
+  if(!valor) return '-';
+  const d = new Date(valor);
+  if(isNaN(d)) return String(valor);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+// Arma un string YYYY-MM-DD a partir de la fecha LOCAL (no UTC), para usar
+// como value de un <input type="date">. Usar .toISOString() acá está mal:
+// convierte a UTC y en Argentina (UTC-3) hace que después de las 21hs
+// aparezca el día siguiente.
+function fechaLocalInput(d){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatNum(n){
+  const num = Number(n || 0);
+  const esEntero = Math.round((num + Number.EPSILON) * 100) / 100 % 1 === 0;
+  return num.toLocaleString('es-AR', {
+    minimumFractionDigits: esEntero ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
+/* ============== Login con Google ============== */
+const ID_TOKEN_KEY = 'dp_stock_id_token';
+const ID_TOKEN_EXP_KEY = 'dp_stock_id_token_exp';
+const lockScreen = document.getElementById('lock-screen');
+const lockError = document.getElementById('lock-error');
+const lockLoading = document.getElementById('lock-loading');
+let idToken = null;
+let rolActual = null;
+let emailActual = '';
+
+function puedeAgregar(){
+  return rolActual === 'admin' || rolActual === 'colaborador';
+}
+function esAdmin(){
+  return rolActual === 'admin';
+}
+
+// Decodifica el JWT del login de Google solo para leer el email
+// (el chequeo real de validez se hace en el Apps Script).
+function decodificarJwt(token){
+  try{
+    const payload = token.split('.')[1];
+    const json = decodeURIComponent(
+      atob(payload.replace(/-/g,'+').replace(/_/g,'/'))
+        .split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+    return JSON.parse(json);
+  }catch(err){
+    return null;
+  }
+}
+
+function mostrarPantallaLogin(mensajeError){
+  idToken = null;
+  rolActual = null;
+  emailActual = '';
+  localStorage.removeItem(ID_TOKEN_KEY);
+  localStorage.removeItem(ID_TOKEN_EXP_KEY);
+  lockError.innerHTML = mensajeError || '';
+  lockLoading.textContent = '';
+  lockScreen.classList.remove('hidden');
+  if(window.google && google.accounts && google.accounts.id){
+    google.accounts.id.disableAutoSelect();
+  }
+}
+
+function handleCredentialResponse(response){
+  const payload = decodificarJwt(response.credential);
+  if(!payload){
+    mostrarPantallaLogin('No se pudo procesar el inicio de sesión.');
+    return;
+  }
+  idToken = response.credential;
+  rolActual = CONFIG.ROLES[String(payload.email || '').toLowerCase()] || 'sin_permisos';
+  emailActual = String(payload.email || '');
+  localStorage.setItem(ID_TOKEN_KEY, idToken);
+  localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
+  lockError.textContent = '';
+  lockScreen.classList.add('hidden');
+  cargarDatos();
+}
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.remove('hidden');
+});
+
+document.getElementById('confirm-cancelar').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.add('hidden');
+});
+
+document.getElementById('confirm-aceptar').addEventListener('click', () => {
+  document.getElementById('confirm-modal').classList.add('hidden');
+  mostrarPantallaLogin('');
+});
+
+window.addEventListener('load', function(){
+  if(window.google && google.accounts && google.accounts.id){
+    google.accounts.id.initialize({
+      client_id: CONFIG.GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: true
+    });
+    google.accounts.id.renderButton(document.getElementById('google-btn'), {
+      theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 260
+    });
+  }
+
+  const tokenGuardado = localStorage.getItem(ID_TOKEN_KEY);
+  const expGuardado = Number(localStorage.getItem(ID_TOKEN_EXP_KEY) || 0);
+
+  if(tokenGuardado && expGuardado > Date.now()){
+    const payloadGuardado = decodificarJwt(tokenGuardado);
+    idToken = tokenGuardado;
+    rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || 'sin_permisos';
+    emailActual = String((payloadGuardado && payloadGuardado.email) || '');
+    lockScreen.classList.add('hidden');
+    cargarDatos();
+  }else if(window.google && google.accounts && google.accounts.id){
+    lockLoading.textContent = 'Buscando sesión de Google...';
+    google.accounts.id.prompt((notif) => {
+      lockLoading.textContent = '';
+    });
+  }
+});
+
+// Maneja una respuesta del Apps Script que indica que el token no es
+// válido o que el email no está en la lista permitida.
+function esRespuestaNoAutorizada(data){
+  if(data && data.auth === true){
+    mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció.<br>Probá iniciar sesión nuevamente.');
+    return true;
+  }
+  return false;
+}
+
+// A diferencia de esRespuestaNoAutorizada (token inválido/vencido), esto es
+// para cuando el login es válido pero el rol no permite esa acción puntual.
+function esRespuestaSinPermiso(data){
+  if(data && data.sinPermiso === true){
+    alert('Tu usuario no tiene permiso para hacer esto.');
+    return true;
+  }
+  return false;
+}
+
+// El servidor devuelve este mensaje cuando se intenta editar/eliminar una
+// fila cuyo ID ya no existe en la planilla — típicamente porque otra
+// persona (u otro dispositivo) la borró o la editó justo antes. En ese
+// caso conviene refrescar solo, en vez de mostrar un error genérico.
+function esRespuestaNoEncontrado(data){
+  return !!(data && typeof data.error === 'string' && data.error.indexOf('No se encontró el registro') !== -1);
+}
+/* =============================================== */
+
+// Espera cierta cantidad de milisegundos (para el reintento de abajo).
+function esperar_(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Hace el fetch al Apps Script y, si falla (por ejemplo el clásico 404
+// transitorio que a veces devuelve Google en los Web Apps, sin relación
+// con el código), espera un instante y reintenta UNA vez antes de darse
+// por vencido. Esto es lo mismo que lograr forzando el refresh a mano,
+// pero automático.
+async function fetchConReintento_(url, opciones){
+  try{
+    const resp = await fetch(url, opciones);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp;
+  }catch(err){
+    await esperar_(1200);
+    const resp = await fetch(url, opciones);
+    if(!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp;
+  }
+}
+
+async function cargarDatos(forzar){
+  btnRefresh.classList.add('spinning');
+  try{
+    let url = CONFIG.APPS_SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken || '');
+    if(forzar) url += '&forzar=1';
+    const resp = await fetchConReintento_(url, {cache:'no-store'});
+    const data = await resp.json();
+    if(data && data.error){
+      movimientos = [];
+      if(esRespuestaNoAutorizada(data)) return;
+      mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos: ${data.error}</div>`;
+      return;
+    }
+    movimientos = data;
+    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+    render();
+  }catch(err){
+    mainEl.innerHTML = `<div class="state-msg error">No se pudo cargar el Google Sheet.<br>${err.message}<br><br>Revisá que CONFIG.APPS_SCRIPT_URL esté bien configurada.</div>`;
+  }finally{
+    btnRefresh.classList.remove('spinning');
+  }
+}
+
+function calcularStock(){
+  const stock = {};
+  CONFIG.PRODUCTOS.forEach(p => stock[p] = {total:0, ultimaFecha:null});
+
+  movimientos.forEach(mov => {
+    CONFIG.PRODUCTOS.forEach(p => {
+      const cant = parseFloat(mov[p]);
+      if(!isNaN(cant) && cant !== 0){
+        stock[p].total += cant;
+        const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+        if(!isNaN(f) && (!stock[p].ultimaFecha || f > stock[p].ultimaFecha)){
+          stock[p].ultimaFecha = f;
+        }
+      }
+    });
+  });
+  return stock;
+}
+
+function renderStock(filtro){
+  const stock = calcularStock();
+  const filas = CONFIG.PRODUCTOS
+    .filter(p => !filtro || p.toLowerCase().includes(filtro.toLowerCase()))
+    .filter(p => Math.round((stock[p].total + Number.EPSILON) * 100) / 100 !== 0)
+    .map(p => {
+      const s = stock[p];
+      const total = Math.round((s.total + Number.EPSILON) * 100) / 100;
+      const claseSigno = total < 0 ? 'neg' : 'pos';
+      return `<tr>
+        <td class="prod">${p}</td>
+        <td class="stock ${claseSigno}">${formatNum(s.total)}</td>
+        <td class="fecha">${s.ultimaFecha ? formatFecha(s.ultimaFecha) : '-'}</td>
+      </tr>`;
+    }).join('');
+
+  if(!filas){
+    mainEl.innerHTML = `<div class="state-msg">Sin productos que coincidan.</div>`;
+    return;
+  }
+
+  mainEl.innerHTML = `
+    <div class="stock-table-wrap">
+      <table class="stock">
+        <thead>
+          <tr>
+            <th class="prod">Producto</th>
+            <th class="stock">Cantidad</th>
+            <th class="fecha">Fecha</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>`;
+}
+
+// Lunes a domingo. getDay(): 0=domingo..6=sábado -> lo convertimos para que
+// el lunes sea el inicio de semana.
+function inicioSemana(fecha){
+  const d = new Date(fecha);
+  d.setHours(0,0,0,0);
+  const diaSemana = (d.getDay() + 6) % 7; // 0=lunes..6=domingo
+  d.setDate(d.getDate() - diaSemana);
+  return d;
+}
+
+function finSemana(fechaInicioSemana){
+  const d = new Date(fechaInicioSemana);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23,59,59,999);
+  return d;
+}
+
+function obtenerRangoResumen(){
+  if(resumenRango === 'esta-semana'){
+    const inicio = inicioSemana(new Date());
+    return { desde: inicio, hasta: finSemana(inicio) };
+  }
+  if(resumenRango === 'semana-pasada'){
+    const inicioActual = inicioSemana(new Date());
+    const inicioPasada = new Date(inicioActual);
+    inicioPasada.setDate(inicioPasada.getDate() - 7);
+    return { desde: inicioPasada, hasta: finSemana(inicioPasada) };
+  }
+  // personalizado
+  const desde = resumenDesdeEl.value ? new Date(resumenDesdeEl.value + 'T00:00:00') : null;
+  const hasta = resumenHastaEl.value ? new Date(resumenHastaEl.value + 'T23:59:59') : null;
+  return { desde, hasta };
+}
+
+const VENTA_TOTAL_VALUE = '__venta_total__';
+
+function seccionCoincide(mov, seccionFiltro){
+  if(!seccionFiltro) return true;
+  if(seccionFiltro === VENTA_TOTAL_VALUE) return mov['Sección'] === 'Repartos' || mov['Sección'] === 'Granja';
+  return mov['Sección'] === seccionFiltro;
+}
+
+function actualizarOpcionesConcepto(){
+  const { desde, hasta } = obtenerRangoResumen();
+  const seccion = resumenSeccionEl.value;
+  const seleccionPrevia = resumenConceptoEl.value;
+
+  const conceptos = new Set();
+  if(desde && hasta){
+    movimientos.forEach(mov => {
+      const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+      if(isNaN(f) || f < desde || f > hasta) return;
+      if(!seccionCoincide(mov, seccion)) return;
+      const concepto = (mov['Concepto'] || '').trim();
+      if(concepto) conceptos.add(concepto);
+    });
+  }
+
+  const listaOrdenada = [...conceptos].sort((a,b) => a.localeCompare(b, 'es'));
+  const mantieneSeleccion = listaOrdenada.includes(seleccionPrevia);
+
+  resumenConceptoEl.innerHTML = `<option value="">Todos</option>`
+    + listaOrdenada.map(c => `<option value="${c}">${c}</option>`).join('');
+  resumenConceptoEl.value = mantieneSeleccion ? seleccionPrevia : '';
+}
+
+function calcularResumen(){
+  const { desde, hasta } = obtenerRangoResumen();
+  const seccion = resumenSeccionEl.value;
+  const concepto = resumenConceptoEl.value;
+
+  const resumen = {};
+  CONFIG.PRODUCTOS.forEach(p => resumen[p] = {entradas:0, salidas:0, total:0});
+
+  if(!desde || !hasta) return resumen;
+
+  movimientos.forEach(mov => {
+    const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+    if(isNaN(f) || f < desde || f > hasta) return;
+    if(!seccionCoincide(mov, seccion)) return;
+    if(concepto && (mov['Concepto'] || '').trim() !== concepto) return;
+
+    CONFIG.PRODUCTOS.forEach(p => {
+      const cant = parseFloat(mov[p]);
+      if(!isNaN(cant) && cant !== 0){
+        if(cant > 0) resumen[p].entradas += cant;
+        else resumen[p].salidas += Math.abs(cant);
+        resumen[p].total += cant;
+      }
+    });
+  });
+
+  return resumen;
+}
+
+// Productos que se consideran "trozado" para el cálculo de Cajas de Pollo
+// (todo el trozado, sin contar Cajones/Unidades de Pollo enteras ni
+// Medallones, Formitas o Tiritas)
+const TROZADO_PRODUCTOS = ['Cuarto', 'Filet de Muslo', 'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida', 'Carcaza'];
+
+// Calcula el total en cajas equivalentes a partir de un objeto con cantidades
+// por producto (sirve tanto para un movimiento de la planilla como para los
+// valores tipeados en el formulario). No se guarda en ningún lado: se
+// recalcula siempre a partir de las cantidades por producto.
+function calcularCajasTotal(valores){
+  const cajones = parseFloat(valores['Cajones de Pollo']) || 0;
+  const unidades = parseFloat(valores['Unidades de Pollo']) || 0;
+  let trozado = 0;
+  TROZADO_PRODUCTOS.forEach(p => { trozado += parseFloat(valores[p]) || 0; });
+  return cajones + (unidades / 8) + (trozado / 20);
+}
+
+function calcularCajasPollo(resumen){
+  const cajones = resumen['Cajones de Pollo'] || {entradas:0, salidas:0, total:0};
+  const unidades = resumen['Unidades de Pollo'] || {entradas:0, salidas:0, total:0};
+  const trozado = {entradas:0, salidas:0, total:0};
+  TROZADO_PRODUCTOS.forEach(p => {
+    if(resumen[p]){
+      trozado.entradas += resumen[p].entradas;
+      trozado.salidas += resumen[p].salidas;
+      trozado.total += resumen[p].total;
+    }
+  });
+  return {
+    entradas: cajones.entradas + (unidades.entradas / 8) + (trozado.entradas / 20),
+    salidas: cajones.salidas + (unidades.salidas / 8) + (trozado.salidas / 20),
+    total: cajones.total + (unidades.total / 8) + (trozado.total / 20)
+  };
+}
+
+function renderResumen(){
+  actualizarOpcionesConcepto();
+  const resumen = calcularResumen();
+  const { desde, hasta } = obtenerRangoResumen();
+
+  if(!desde || !hasta){
+    mainEl.innerHTML = `<div class="state-msg">Elegí un rango de fechas para ver el resumen.</div>`;
+    return;
+  }
+
+  const filas = CONFIG.PRODUCTOS
+    .filter(p => {
+      const r = resumen[p];
+      return Math.round((r.entradas + Number.EPSILON) * 100) / 100 !== 0
+        || Math.round((r.salidas + Number.EPSILON) * 100) / 100 !== 0;
+    })
+    .map(p => {
+      const r = resumen[p];
+      return `<tr>
+        <td class="prod">${p}</td>
+        <td class="entradas">${formatNum(r.entradas)}</td>
+        <td class="salidas">${formatNum(r.salidas)}</td>
+        <td class="total">${formatNum(r.total)}</td>
+      </tr>`;
+    }).join('');
+
+  if(!filas){
+    mainEl.innerHTML = `<div class="state-msg">Sin movimientos en el rango elegido.</div>`;
+    return;
+  }
+
+  const cajasPollo = calcularCajasPollo(resumen);
+  const filaCajasPollo = `<tr class="cajas-pollo-row">
+    <td class="prod">Total en cajones</td>
+    <td class="entradas">${formatNum(cajasPollo.entradas)}</td>
+    <td class="salidas">${formatNum(cajasPollo.salidas)}</td>
+    <td class="total">${formatNum(cajasPollo.total)}</td>
+  </tr>`;
+
+  mainEl.innerHTML = `
+    <div class="stock-table-wrap">
+      <table class="stock resumen-table">
+        <thead>
+          <tr>
+            <th class="prod">Producto</th>
+            <th class="entradas">Entradas</th>
+            <th class="salidas">Salidas</th>
+            <th class="total">Total</th>
+          </tr>
+        </thead>
+        <tbody>${filas}${filaCajasPollo}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderMovimientos(filtro){
+  // Se muestran en el mismo orden en que están en la planilla (orden de carga),
+  // sin reordenar por Fecha. Así, si alguien carga mal la fecha, el error se
+  // nota porque el movimiento aparece fuera de lugar en vez de quedar oculto.
+  const ordenados = movimientos;
+
+  // columnas de producto a mostrar: si el filtro coincide con algún nombre de
+  // producto, mostramos solo esas; si no coincide con ninguno (porque busca por
+  // sección, concepto, notas o usuario), mostramos todas las columnas igual.
+  const productosCoincidentes = filtro
+    ? CONFIG.PRODUCTOS.filter(p => p.toLowerCase().includes(filtro.toLowerCase()))
+    : [];
+  const productosVisibles = productosCoincidentes.length > 0 ? productosCoincidentes : CONFIG.PRODUCTOS;
+
+  const filas = ordenados
+    .filter(mov => {
+      if(!filtro) return true;
+      // coincide si el filtro matchea un producto con movimiento en esa fila,
+      // o si matchea el concepto/sección/notas
+      const matchProducto = CONFIG.PRODUCTOS.some(p => p.toLowerCase().includes(filtro.toLowerCase()) && parseFloat(mov[p]));
+      const texto = `${mov['Concepto']||''} ${mov['Sección']||''} ${mov['Notas']||''} ${mov['Usuario']||''}`.toLowerCase();
+      return matchProducto || texto.includes(filtro.toLowerCase());
+    })
+    .map(mov => {
+      const celdasProducto = productosVisibles.map(p => {
+        const val = parseFloat(mov[p]);
+        if(!val) return `<td class="num zero">-</td>`;
+        const cls = val >= 0 ? 'pos' : 'neg';
+        const signo = val >= 0 ? '+' : '';
+        return `<td class="num ${cls}">${signo}${formatNum(val)}</td>`;
+      }).join('');
+
+      const cajasTotal = calcularCajasTotal(mov);
+      const cajasCls = cajasTotal === 0 ? 'zero' : (cajasTotal > 0 ? 'pos' : 'neg');
+      const cajasSigno = cajasTotal > 0 ? '+' : '';
+      const celdaCajasTotal = cajasTotal === 0
+        ? `<td class="num zero">-</td>`
+        : `<td class="num ${cajasCls}">${cajasSigno}${formatNum(cajasTotal)}</td>`;
+
+      return `<tr class="mov-row" data-id="${mov['ID'] || ''}">
+        <td class="fecha">${formatFecha(mov[CONFIG.CAMPO_FECHA])}</td>
+        <td>${mov['Sección'] || '-'}</td>
+        <td>${mov['Concepto'] || '-'}</td>
+        <td>${mov['Notas'] || '-'}</td>
+        ${celdasProducto}
+        ${celdaCajasTotal}
+        <td>${mov['Usuario'] || '-'}</td>
+      </tr>`;
+    }).join('');
+
+  if(!filas){
+    mainEl.innerHTML = `<div class="state-msg">Sin movimientos que coincidan.</div>`;
+    return;
+  }
+
+  const headerProductos = productosVisibles.map(p => `<th>${p}</th>`).join('');
+
+  mainEl.innerHTML = `
+    <div class="mov-table-wrap">
+      <div class="mov-scroll" id="mov-scroll">
+        <table class="mov">
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Sección</th><th>Concepto</th><th>Notas</th>
+              ${headerProductos}
+              <th>Cajas total</th>
+              <th>Usuario</th>
+            </tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  mainEl.querySelectorAll('tr.mov-row').forEach(tr => {
+    tr.addEventListener('click', () => {
+      const id = tr.dataset.id;
+      filaSeleccionadaId = (filaSeleccionadaId === id) ? null : id;
+      actualizarSeleccionUI();
+    });
+  });
+  actualizarSeleccionUI();
+}
+
+// Guarda la posición de scroll de cada pestaña para restaurarla al volver
+const scrollState = {
+  stock: 0,
+  resumen: 0,
+  movimientos: { top: 0, left: 0 }
+};
+
+// Si está en true, la próxima vez que se restaure el scroll de Movimientos
+// se va directo al final (abajo a la izquierda) en vez de la posición previa.
+// Se usa al sincronizar datos (cargarDatos), solo si ya se estaba en esa pestaña.
+let irAlFondoMovimientos = false;
+
+function guardarScrollActual(){
+  if(currentTab === 'movimientos'){
+    const movScroll = document.getElementById('mov-scroll');
+    if(movScroll){
+      scrollState.movimientos.top = movScroll.scrollTop;
+      scrollState.movimientos.left = movScroll.scrollLeft;
+    }
+  }else if(currentTab === 'resumen'){
+    scrollState.resumen = mainEl.scrollTop;
+  }else{
+    scrollState.stock = mainEl.scrollTop;
+  }
+}
+
+function restaurarScroll(){
+  if(currentTab === 'movimientos'){
+    const movScroll = document.getElementById('mov-scroll');
+    if(movScroll){
+      if(irAlFondoMovimientos){
+        movScroll.scrollTop = movScroll.scrollHeight;
+        movScroll.scrollLeft = 0;
+        irAlFondoMovimientos = false;
+      }else{
+        movScroll.scrollTop = scrollState.movimientos.top;
+        movScroll.scrollLeft = scrollState.movimientos.left;
+      }
+    }
+  }else if(currentTab === 'resumen'){
+    mainEl.scrollTop = scrollState.resumen;
+  }else{
+    mainEl.scrollTop = scrollState.stock;
+  }
+}
+
+function render(){
+  searchWrapEl.style.display = currentTab === 'movimientos' ? 'block' : 'none';
+  resumenControlsEl.classList.toggle('hidden', currentTab !== 'resumen');
+  const filtro = currentTab === 'movimientos' ? searchEl.value.trim() : '';
+  mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
+  fabNuevo.classList.toggle('hidden', currentTab !== 'movimientos' || !puedeAgregar());
+  if(currentTab === 'stock'){
+    headerTitle.textContent = 'Stock';
+    renderStock(filtro);
+  }else if(currentTab === 'resumen'){
+    headerTitle.textContent = 'Resumen';
+    renderResumen();
+  }else{
+    headerTitle.textContent = 'Movimientos';
+    renderMovimientos(filtro);
+  }
+  restaurarScroll();
+  posicionarFabs();
+}
+
+// Alinea los botones flotantes (+/copiar/editar/eliminar) apenas adentro
+// del borde real de la tabla de Movimientos (tanto en celular como en PC,
+// donde la tabla se estira más ancha que el resto de la app), dejando
+// margen suficiente para no superponerse con las barras de scroll
+// vertical y horizontal.
+function posicionarFabs(){
+  const wrap = document.querySelector('.mov-table-wrap');
+  if(!wrap) return;
+  const rect = wrap.getBoundingClientRect();
+  const right = Math.max(16, window.innerWidth - rect.right + 26);
+  const bottomBase = Math.max(28, window.innerHeight - rect.bottom + 26);
+  fabNuevo.style.right = right + 'px';
+  fabNuevo.style.bottom = bottomBase + 'px';
+  fabAcciones.style.right = right + 'px';
+  fabAcciones.style.bottom = (bottomBase + 68) + 'px';
+}
+window.addEventListener('resize', posicionarFabs);
+
+function setTab(tab){
+  if(tab === currentTab) return;
+  guardarScrollActual();
+  currentTab = tab;
+  document.getElementById('tab-stock').classList.toggle('active', tab === 'stock');
+  document.getElementById('tab-mov').classList.toggle('active', tab === 'movimientos');
+  document.getElementById('tab-resumen').classList.toggle('active', tab === 'resumen');
+  deseleccionarFila();
+  render();
+}
+
+document.getElementById('tab-stock').addEventListener('click', () => setTab('stock'));
+document.getElementById('tab-mov').addEventListener('click', () => setTab('movimientos'));
+document.getElementById('tab-resumen').addEventListener('click', () => setTab('resumen'));
+
+document.querySelectorAll('.resumen-rango-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    resumenRango = btn.dataset.rango;
+    document.querySelectorAll('.resumen-rango-btn').forEach(b => b.classList.toggle('active', b === btn));
+    resumenPersonalizadoEl.classList.toggle('hidden', resumenRango !== 'personalizado');
+    renderResumen();
+  });
+});
+
+resumenDesdeEl.addEventListener('change', () => { if(resumenRango === 'personalizado') renderResumen(); });
+resumenHastaEl.addEventListener('change', () => { if(resumenRango === 'personalizado') renderResumen(); });
+resumenSeccionEl.addEventListener('change', renderResumen);
+resumenConceptoEl.addEventListener('change', renderResumen);
+
+// El botón de sincronizar es una acción explícita: fuerza traer el dato
+// en vivo de la planilla (salteando la caché), por si alguien la editó
+// a mano desde fuera de la app. Igual que en la app de Saldos.
+btnRefresh.addEventListener('click', () => cargarDatos(true));
+searchEl.addEventListener('input', () => {
+  // al filtrar, arrancamos la vista de nuevo desde arriba
+  scrollState.stock = 0;
+  scrollState.movimientos = { top: 0, left: 0 };
+  render();
+});
+
+/* ============== Nuevo movimiento ============== */
+const SECCIONES = ['Compras', 'Granja', 'Repartos', 'Trozado', 'Ajustes', 'Otros'];
+resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
+  + `<option value="${VENTA_TOTAL_VALUE}">Venta total</option>`;
+const fabNuevo = document.getElementById('fab-nuevo');
+const fabAcciones = document.getElementById('fab-acciones');
+const fabEditar = document.getElementById('fab-editar');
+const fabCopiar = document.getElementById('fab-copiar');
+const fabEliminar = document.getElementById('fab-eliminar');
+let filaSeleccionadaId = null;
+// Movimiento original que se está editando (para poder conservar datos
+// como "Fecha Real" al actualizar la lista en memoria sin recargar todo).
+let movEnEdicion = null;
+
+function actualizarSeleccionUI(){
+  let encontrada = false;
+  mainEl.querySelectorAll('tr.mov-row').forEach(tr => {
+    const esta = tr.dataset.id === filaSeleccionadaId;
+    tr.classList.toggle('selected', esta);
+    if(esta) encontrada = true;
+  });
+  if(filaSeleccionadaId && !encontrada) filaSeleccionadaId = null;
+  fabAcciones.classList.toggle('hidden', !filaSeleccionadaId || currentTab !== 'movimientos' || !esAdmin());
+}
+
+function deseleccionarFila(){
+  filaSeleccionadaId = null;
+  actualizarSeleccionUI();
+}
+
+fabEditar.addEventListener('click', () => {
+  const mov = movimientos.find(m => String(m['ID']) === String(filaSeleccionadaId));
+  deseleccionarFila();
+  if(mov) abrirNuevoModal(mov, true);
+});
+
+fabCopiar.addEventListener('click', () => {
+  const mov = movimientos.find(m => String(m['ID']) === String(filaSeleccionadaId));
+  deseleccionarFila();
+  if(mov) abrirNuevoModal(mov, false);
+});
+
+const confirmEliminarModal = document.getElementById('confirm-eliminar-modal');
+let idAEliminar = null;
+
+fabEliminar.addEventListener('click', () => {
+  idAEliminar = filaSeleccionadaId;
+  deseleccionarFila();
+  if(idAEliminar) confirmEliminarModal.classList.remove('hidden');
+});
+
+document.getElementById('confirm-eliminar-cancelar').addEventListener('click', () => {
+  confirmEliminarModal.classList.add('hidden');
+  idAEliminar = null;
+});
+
+document.getElementById('confirm-eliminar-aceptar').addEventListener('click', async () => {
+  if(!idAEliminar) return;
+  const idBorrar = idAEliminar;
+  const btnAceptar = document.getElementById('confirm-eliminar-aceptar');
+  btnAceptar.disabled = true;
+  btnAceptar.textContent = 'Eliminando...';
+  try{
+    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ accion: 'eliminar', id: idBorrar, idToken: idToken || '' })
+    });
+    const data = await resp.json();
+    if(data && data.error){
+      if(esRespuestaNoAutorizada(data)){
+        confirmEliminarModal.classList.add('hidden');
+        idAEliminar = null;
+        return;
+      }
+      if(esRespuestaSinPermiso(data)){
+        confirmEliminarModal.classList.add('hidden');
+        idAEliminar = null;
+        return;
+      }
+      if(esRespuestaNoEncontrado(data)){
+        confirmEliminarModal.classList.add('hidden');
+        idAEliminar = null;
+        alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
+        await cargarDatos(true);
+        return;
+      }
+      throw new Error(data.error);
+    }
+
+    movimientos = movimientos.filter(m => String(m['ID']) !== String(idBorrar));
+    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+
+    confirmEliminarModal.classList.add('hidden');
+    idAEliminar = null;
+    render();
+  }catch(err){
+    alert('No se pudo eliminar: ' + err.message);
+  }finally{
+    btnAceptar.disabled = false;
+    btnAceptar.textContent = 'Eliminar';
+  }
+});
+const nuevoModal = document.getElementById('nuevo-modal');
+const nmProductosPrincipales = document.getElementById('nm-productos-principales');
+const nmProductosResto = document.getElementById('nm-productos-resto');
+const nmSeccionGrid = document.getElementById('nm-seccion-grid');
+const nmSeccion = document.getElementById('nm-seccion');
+const nmEditId = document.getElementById('nm-edit-id');
+const nuevoTitulo = document.getElementById('nuevo-titulo');
+const nmConcepto = document.getElementById('nm-concepto');
+const nmNotas = document.getElementById('nm-notas');
+const nmUsuario = document.getElementById('nm-usuario');
+const nmFecha = document.getElementById('nm-fecha');
+const nuevoError = document.getElementById('nuevo-error');
+const btnGuardar = document.getElementById('nuevo-guardar');
+
+// generar un input por producto: los 2 primeros en la grilla grande, el resto de a 3
+function itemProductoHTML(p, i){
+  return `
+    <div class="nuevo-prod-item">
+      <label for="nm-prod-${i}">${p}</label>
+      <input type="text" inputmode="decimal" id="nm-prod-${i}" data-producto="${p}" placeholder="0" class="nm-prod-input">
+    </div>`;
+}
+nmProductosPrincipales.innerHTML = CONFIG.PRODUCTOS.slice(0, 2)
+  .map((p, i) => itemProductoHTML(p, i)).join('');
+nmProductosResto.innerHTML = CONFIG.PRODUCTOS.slice(2)
+  .map((p, i) => itemProductoHTML(p, i + 2)).join('');
+
+// Formateo en vivo de los campos de cantidad: separador de miles dinámico,
+// coma como separador decimal, y máximo 4 dígitos en la parte entera.
+function formatearCantidad(valorCrudo){
+  const negativo = valorCrudo.trim().startsWith('-');
+
+  // dejar solo dígitos y comas
+  let limpio = valorCrudo.replace(/[^0-9,]/g, '');
+
+  // quedarnos solo con la primera coma (separador decimal)
+  const idxComa = limpio.indexOf(',');
+  let entero = idxComa === -1 ? limpio : limpio.slice(0, idxComa);
+  let decimal = idxComa === -1 ? null : limpio.slice(idxComa + 1).replace(/,/g, '');
+
+  // máximo 4 dígitos en la parte entera (sin contar la parte decimal)
+  entero = entero.slice(0, 4);
+
+  // separador de miles dinámico (punto)
+  const enteroConPuntos = entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  let resultado = (negativo ? '-' : '') + enteroConPuntos;
+  if(decimal !== null) resultado += ',' + decimal;
+
+  return resultado;
+}
+
+const nmCajasTotal = document.getElementById('nm-cajas-total');
+
+// Recalcula el campo "Cajas total" del formulario en vivo, leyendo lo
+// tipeado en cada input de producto (usa coma como separador decimal, igual
+// que se muestran los inputs).
+function actualizarCajasTotalForm(){
+  const valores = {};
+  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+    const val = inp.value.trim();
+    if(val !== ''){
+      valores[inp.dataset.producto] = limpiarCantidadParaEnvio(val).replace(',', '.');
+    }
+  });
+  nmCajasTotal.value = formatNum(calcularCajasTotal(valores));
+}
+
+document.querySelectorAll('.nm-prod-input').forEach(inp => {
+  inp.addEventListener('input', () => {
+    inp.value = formatearCantidad(inp.value);
+    actualizarCajasTotalForm();
+  });
+});
+
+// Antes de enviar: quita los puntos de miles y deja el número limpio
+// (la coma decimal se convierte a punto del lado del Apps Script).
+function limpiarCantidadParaEnvio(valorFormateado){
+  return valorFormateado.replace(/\./g, '');
+}
+
+// generar los botones de Sección, una sola vez
+nmSeccionGrid.innerHTML = SECCIONES.map(s => `
+  <button type="button" class="nm-seccion-btn" data-seccion="${s}">${s}</button>
+`).join('');
+
+function seleccionarSeccion(valor){
+  nmSeccion.value = valor;
+  nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.seccion === valor);
+  });
+}
+
+nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    // tocar de nuevo el mismo botón lo deselecciona
+    seleccionarSeccion(nmSeccion.value === btn.dataset.seccion ? '' : btn.dataset.seccion);
+  });
+});
+
+// Convierte un valor numérico tal como viene de la planilla (ej: -52.5)
+// al formato que usan los inputs (ej: "-52,5", con separador de miles si aplica)
+function numeroAInputStr(num){
+  if(num === undefined || num === null || num === '') return '';
+  const n = parseFloat(num);
+  if(isNaN(n) || n === 0) return '';
+  return formatearCantidad(String(n).replace('.', ','));
+}
+
+function abrirNuevoModal(mov, modoEditar){
+  const precargar = !!mov;
+  movEnEdicion = (precargar && modoEditar) ? mov : null;
+  nmEditId.value = (precargar && modoEditar) ? (mov['ID'] || '') : '';
+  nuevoTitulo.textContent = modoEditar ? 'Editar movimiento' : (precargar ? 'Copiar movimiento' : 'Nuevo movimiento');
+
+  seleccionarSeccion(precargar ? (mov['Sección'] || '') : '');
+  nmConcepto.value = precargar ? (mov['Concepto'] || '') : '';
+  nmNotas.value = precargar ? (mov['Notas'] || '') : '';
+  nmUsuario.value = emailActual;
+  nmFecha.value = precargar && mov[CONFIG.CAMPO_FECHA]
+    ? fechaLocalInput(new Date(mov[CONFIG.CAMPO_FECHA]))
+    : fechaLocalInput(new Date());
+
+  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+    inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
+  });
+  actualizarCajasTotalForm();
+
+  nuevoError.textContent = '';
+  btnGuardar.disabled = false;
+  btnGuardar.textContent = modoEditar ? 'Guardar cambios' : (precargar ? 'Guardar copia' : 'Guardar');
+  nuevoModal.classList.remove('hidden');
+  document.querySelector('.nuevo-body').scrollTop = 0;
+}
+
+function cerrarNuevoModal(){
+  nuevoModal.classList.add('hidden');
+}
+
+// Construye el objeto de movimiento con las mismas claves y el mismo
+// formato de fecha (ISO) que devuelve el Google Sheet, a partir de lo que
+// se acaba de guardar. Se usa para actualizar la lista en memoria sin
+// tener que pedirle todo de nuevo al servidor.
+function construirMovimientoLocal(payload, idFinal, movOriginal){
+  const mov = {
+    'ID': idFinal,
+    'Usuario': payload.usuario,
+    'Fecha Real': (movOriginal && movOriginal['Fecha Real']) || new Date().toISOString(),
+    'Fecha': payload.fecha
+      ? new Date(payload.fecha + 'T00:00:00').toISOString()
+      : ((movOriginal && movOriginal['Fecha']) || new Date().toISOString()),
+    'Sección': payload.seccion,
+    'Concepto': payload.concepto,
+    'Notas': payload.notas
+  };
+  CONFIG.PRODUCTOS.forEach(p => {
+    const val = payload.productos ? payload.productos[p] : undefined;
+    if(val === undefined || val === null || val === ''){
+      mov[p] = '';
+    }else{
+      const num = parseFloat(String(val).replace(',', '.'));
+      mov[p] = isNaN(num) ? '' : num;
+    }
+  });
+  return mov;
+}
+
+fabNuevo.addEventListener('click', () => abrirNuevoModal());
+document.getElementById('nuevo-cerrar').addEventListener('click', cerrarNuevoModal);
+document.getElementById('nuevo-cancelar-btn').addEventListener('click', cerrarNuevoModal);
+
+btnGuardar.addEventListener('click', async () => {
+  nuevoError.textContent = '';
+
+  const seccion = nmSeccion.value.trim();
+  const concepto = nmConcepto.value.trim();
+
+  if(!seccion){
+    nuevoError.textContent = 'Seleccioná una sección.';
+    return;
+  }
+  if(!concepto){
+    nuevoError.textContent = 'Completá el concepto.';
+    return;
+  }
+
+  const productos = {};
+  let hayCantidad = false;
+  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+    const val = inp.value.trim();
+    if(val !== ''){
+      productos[inp.dataset.producto] = limpiarCantidadParaEnvio(val);
+      hayCantidad = true;
+    }
+  });
+
+  if(!hayCantidad){
+    nuevoError.textContent = 'Cargá al menos la cantidad de un producto.';
+    return;
+  }
+
+  const usuario = nmUsuario.value.trim();
+
+  const payload = {
+    seccion, concepto,
+    notas: nmNotas.value.trim(),
+    usuario,
+    fecha: nmFecha.value,
+    productos
+  };
+  if(nmEditId.value) payload.id = nmEditId.value;
+  payload.idToken = idToken || '';
+
+  btnGuardar.disabled = true;
+  btnGuardar.textContent = 'Guardando...';
+
+  try{
+    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if(data && data.error){
+      if(esRespuestaNoAutorizada(data)){
+        cerrarNuevoModal();
+        return;
+      }
+      if(esRespuestaSinPermiso(data)){
+        cerrarNuevoModal();
+        return;
+      }
+      if(esRespuestaNoEncontrado(data)){
+        cerrarNuevoModal();
+        alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
+        await cargarDatos(true);
+        return;
+      }
+      throw new Error(data.error);
+    }
+
+    const idFinal = (data && data.id) ? data.id : nmEditId.value;
+    const movGuardado = construirMovimientoLocal(payload, idFinal, movEnEdicion);
+    const idx = movimientos.findIndex(m => String(m['ID']) === String(idFinal));
+    if(idx !== -1){
+      movimientos[idx] = movGuardado;
+    }else{
+      movimientos.push(movGuardado);
+    }
+    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+
+    cerrarNuevoModal();
+    render();
+  }catch(err){
+    nuevoError.textContent = 'No se pudo guardar: ' + err.message;
+  }finally{
+    btnGuardar.disabled = false;
+    btnGuardar.textContent = 'Guardar';
+  }
+});
+/* =================================================== */
+
+/* ============== PWA: registro del Service Worker ============== */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('No se pudo registrar el Service Worker:', err);
+    });
+  });
+}
+/* ================================================================ */
+
+</script>
+</body>
+</html>
