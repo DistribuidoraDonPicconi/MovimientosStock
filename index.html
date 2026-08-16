@@ -1015,7 +1015,7 @@ function generarTextoStock(){
     .map(p => `${p}: ${formatNum(stock[p].total)}`);
 
   const fecha = new Date().toLocaleDateString('es-AR');
-  let texto = `*Stock Actual*\n_Distribuidora Don Picconi — ${fecha}_\n\n`;
+  let texto = `*Stock Actual*\n_${fecha}_\n\n`;
   texto += filas.length ? filas.join('\n') : 'Sin stock cargado.';
   return texto;
 }
@@ -1442,6 +1442,9 @@ function setTab(tab){
   document.getElementById('tab-resumen').classList.toggle('active', tab === 'resumen');
   deseleccionarFila();
   render();
+  // Al entrar a Stock Actual desde otra pestaña, sincronizamos solo,
+  // como si se tocara el botón de actualizar (trae el dato en vivo).
+  if(tab === 'stock') cargarDatos(true);
 }
 
 document.getElementById('tab-stock').addEventListener('click', () => setTab('stock'));
