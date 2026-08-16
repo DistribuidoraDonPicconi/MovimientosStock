@@ -84,6 +84,38 @@
   .icon-btn svg{ width:19px; height:19px; }
   .icon-btn.spinning svg{ animation: spin 0.8s linear infinite; }
   @keyframes spin{ to{ transform:rotate(360deg); } }
+  .icon-btn.hidden{ display:none; }
+
+  /* Modal: compartir Stock Actual como texto */
+  #compartir-modal{
+    position:fixed; inset:0; background:rgba(17,22,36,0.5); z-index:80;
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #compartir-modal.hidden{ display:none; }
+  .compartir-box{
+    width:100%; max-width:var(--app-max-width); background:#fff;
+    border-radius:20px 20px 0 0; padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+    box-shadow:0 -6px 24px rgba(17,22,36,0.18);
+  }
+  .compartir-box h3{ font-size:17px; margin:0 0 12px; color:#111624; font-weight:800; }
+  .compartir-preview{
+    background:var(--fondo); border:1px solid var(--linea); border-radius:12px;
+    padding:12px; margin-bottom:14px; max-height:280px; overflow:auto;
+  }
+  .compartir-preview textarea{
+    width:100%; min-height:200px; border:none; background:transparent; resize:vertical;
+    font-family:inherit; font-size:14px; color:#111624; line-height:1.5;
+  }
+  .compartir-preview textarea:focus{ outline:none; }
+  .compartir-box .compartir-actions{ display:flex; flex-direction:column; gap:10px; }
+  .compartir-box button{ padding:13px; border-radius:12px; border:none; font-size:15px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .compartir-box button svg{ width:19px; height:19px; }
+  .compartir-box .btn-copiar{ background:var(--azul); color:#fff; }
+  .compartir-box .btn-copiar:active{ opacity:0.85; }
+  .compartir-box .btn-whatsapp{ background:#25d366; color:#fff; }
+  .compartir-box .btn-whatsapp:active{ opacity:0.85; }
+  .compartir-box .btn-cerrar-compartir{ background:var(--azul-suave); color:var(--azul-osc); margin-top:2px; }
+  .compartir-box .btn-cerrar-compartir:active{ background:var(--azul-borde); }
 
   /* Pill tabs */
   .pill-tabs{
@@ -564,6 +596,26 @@
   </div>
 </div>
 
+<div id="compartir-modal" class="hidden">
+  <div class="compartir-box">
+    <h3>Compartir Stock Actual</h3>
+    <div class="compartir-preview">
+      <textarea id="compartir-preview-texto" readonly></textarea>
+    </div>
+    <div class="compartir-actions">
+      <button class="btn-copiar" id="btn-compartir-copiar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copiar texto
+      </button>
+      <button class="btn-whatsapp" id="btn-compartir-whatsapp">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.32 4.96L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zm5.8 14.16c-.24.68-1.4 1.32-1.93 1.4-.5.08-1.11.11-1.79-.11-.41-.13-.94-.3-1.62-.6-2.86-1.24-4.72-4.13-4.86-4.32-.14-.19-1.17-1.55-1.17-2.96 0-1.4.74-2.09 1-2.38.26-.28.57-.35.76-.35.19 0 .38 0 .55.01.18.01.41-.07.64.49.24.57.81 1.98.88 2.12.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.16-.29.36-.42.49-.14.14-.28.29-.12.57.16.28.71 1.17 1.52 1.9 1.05.94 1.93 1.23 2.21 1.37.28.14.44.12.6-.07.16-.19.68-.79.87-1.06.18-.28.37-.23.62-.14.26.09 1.63.77 1.91.91.28.14.47.21.54.33.07.13.07.71-.17 1.39z"/></svg>
+        Compartir por WhatsApp
+      </button>
+      <button class="btn-cerrar-compartir" id="btn-compartir-cerrar">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="app">
 
   <header>
@@ -573,6 +625,9 @@
         <div class="sub">Distribuidora Don Picconi</div>
       </div>
       <div style="display:flex; gap:22px;">
+        <button class="icon-btn hidden" id="btn-compartir" aria-label="Compartir">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
         <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -674,6 +729,7 @@ const searchEl = document.getElementById('search');
 const searchWrapEl = document.getElementById('search-wrap');
 const headerTitle = document.getElementById('header-title');
 const btnRefresh = document.getElementById('btn-refresh');
+const btnCompartir = document.getElementById('btn-compartir');
 const appEl = document.getElementById('app');
 const resumenControlsEl = document.getElementById('resumen-controls');
 const resumenPersonalizadoEl = document.getElementById('resumen-personalizado');
@@ -869,10 +925,11 @@ async function fetchConReintento_(url, opciones){
   }
 }
 
-async function cargarDatos(){
+async function cargarDatos(forzar){
   btnRefresh.classList.add('spinning');
   try{
-    const url = CONFIG.APPS_SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken || '');
+    let url = CONFIG.APPS_SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken || '');
+    if(forzar) url += '&forzar=1';
     const resp = await fetchConReintento_(url, {cache:'no-store'});
     const data = await resp.json();
     if(data && data.error){
@@ -945,6 +1002,82 @@ function renderStock(filtro){
       </table>
     </div>`;
 }
+
+/* ============== Compartir Stock Actual como texto (WhatsApp) ============== */
+
+// Arma el contenido de Stock Actual como texto plano, con el mismo criterio
+// que se ve en pantalla (se omiten productos en 0), para pegarlo o
+// mandarlo directo al grupo de WhatsApp sin tener que subir una imagen.
+function generarTextoStock(){
+  const stock = calcularStock();
+  const filas = CONFIG.PRODUCTOS
+    .filter(p => Math.round((stock[p].total + Number.EPSILON) * 100) / 100 !== 0)
+    .map(p => `${p}: ${formatNum(stock[p].total)}`);
+
+  const fecha = new Date().toLocaleDateString('es-AR');
+  let texto = `*Stock Actual*\n_Distribuidora Don Picconi — ${fecha}_\n\n`;
+  texto += filas.length ? filas.join('\n') : 'Sin stock cargado.';
+  return texto;
+}
+
+const compartirModal = document.getElementById('compartir-modal');
+const compartirPreviewTexto = document.getElementById('compartir-preview-texto');
+const btnCompartirCopiar = document.getElementById('btn-compartir-copiar');
+const btnCompartirWhatsapp = document.getElementById('btn-compartir-whatsapp');
+const btnCompartirCerrar = document.getElementById('btn-compartir-cerrar');
+
+function marcarCompartirOk(boton){
+  const original = boton.innerHTML;
+  boton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Listo';
+  setTimeout(() => { boton.innerHTML = original; }, 1400);
+}
+
+function cerrarCompartirModal(){
+  compartirModal.classList.add('hidden');
+}
+
+btnCompartir.addEventListener('click', () => {
+  compartirPreviewTexto.value = generarTextoStock();
+  compartirModal.classList.remove('hidden');
+});
+
+btnCompartirCerrar.addEventListener('click', cerrarCompartirModal);
+
+btnCompartirCopiar.addEventListener('click', async () => {
+  const texto = compartirPreviewTexto.value;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(texto);
+    }else{
+      compartirPreviewTexto.select();
+      document.execCommand('copy');
+    }
+    marcarCompartirOk(btnCompartirCopiar);
+  }catch(err){
+    alert('No se pudo copiar el texto. Podés seleccionarlo manualmente arriba.');
+  }
+});
+
+btnCompartirWhatsapp.addEventListener('click', async () => {
+  const texto = compartirPreviewTexto.value;
+
+  // Compartir nativo de texto (celular: aparece WhatsApp entre las opciones,
+  // incluyendo mandarlo directo a un grupo).
+  if(navigator.share){
+    try{
+      await navigator.share({ text: texto, title: 'Stock Actual' });
+      cerrarCompartirModal();
+      return;
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // el usuario canceló
+    }
+  }
+
+  // Alternativa: abre WhatsApp (app o web) con el texto ya cargado, listo
+  // para elegir el chat o grupo al que mandarlo.
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
+  cerrarCompartirModal();
+});
 
 // Lunes a domingo. getDay(): 0=domingo..6=sábado -> lo convertimos para que
 // el lunes sea el inicio de semana.
@@ -1267,6 +1400,7 @@ function render(){
   const filtro = currentTab === 'movimientos' ? searchEl.value.trim() : '';
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
   fabNuevo.classList.toggle('hidden', currentTab !== 'movimientos' || !puedeAgregar());
+  btnCompartir.classList.toggle('hidden', currentTab !== 'stock');
   if(currentTab === 'stock'){
     headerTitle.textContent = 'Stock';
     renderStock(filtro);
@@ -1328,7 +1462,10 @@ resumenHastaEl.addEventListener('change', () => { if(resumenRango === 'personali
 resumenSeccionEl.addEventListener('change', renderResumen);
 resumenConceptoEl.addEventListener('change', renderResumen);
 
-btnRefresh.addEventListener('click', cargarDatos);
+// El botón de sincronizar es una acción explícita: fuerza traer el dato
+// en vivo de la planilla (salteando la caché), por si alguien la editó
+// a mano desde fuera de la app. Igual que en la app de Saldos.
+btnRefresh.addEventListener('click', () => cargarDatos(true));
 searchEl.addEventListener('input', () => {
   // al filtrar, arrancamos la vista de nuevo desde arriba
   scrollState.stock = 0;
@@ -1419,7 +1556,7 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
         confirmEliminarModal.classList.add('hidden');
         idAEliminar = null;
         alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
-        await cargarDatos();
+        await cargarDatos(true);
         return;
       }
       throw new Error(data.error);
@@ -1672,7 +1809,7 @@ btnGuardar.addEventListener('click', async () => {
       if(esRespuestaNoEncontrado(data)){
         cerrarNuevoModal();
         alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
-        await cargarDatos();
+        await cargarDatos(true);
         return;
       }
       throw new Error(data.error);
