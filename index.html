@@ -21,7 +21,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithCredential, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
   import {
-    getFirestore, collection, getDocs, doc, setDoc, deleteDoc
+    getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy
   } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -57,7 +57,8 @@
   // usa el resto de la app (columnas tipo planilla) se hace afuera de este
   // módulo, en cargarDatos().
   window.firestoreLeerMovimientos = async () => {
-    const snap = await getDocs(collection(db, "movimientos"));
+    const q = query(collection(db, "movimientos"), orderBy("fechaReal"));
+    const snap = await getDocs(q);
     const out = [];
     snap.forEach(d => out.push({ id: d.id, ...d.data() }));
     return out;
