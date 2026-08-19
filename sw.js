@@ -1,5 +1,5 @@
 /* Service Worker - Stock Don Picconi */
-const CACHE_NAME = 'stock-dp-v16';
+const CACHE_NAME = 'stock-dp-v17';
 const APP_SHELL = [
   './',
   './index.html',
@@ -27,10 +27,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: nunca cachear el login de Google ni los datos en vivo de Apps Script
-// (siempre tienen que pedirse a la red). El resto del cascarón usa
-// "cache primero, red de respaldo" para que la app abra rápido y offline,
-// y "red primero, caché de respaldo" para mantenerlo actualizado cuando hay conexión.
+// Fetch: nunca cachear el login de Google ni los datos en vivo de Firestore
+// (siempre tienen que pedirse a la red, para no mostrar stock desactualizado
+// si en algún momento se cae la conexión). El resto del cascarón usa
+// "red primero, caché de respaldo" para mantenerlo actualizado cuando hay
+// conexión, y sirve desde caché si la red falla (offline).
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -38,7 +39,12 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('script.google.com') ||
     url.hostname.includes('accounts.google.com') ||
     url.hostname.includes('googleusercontent.com') ||
-    url.hostname.includes('gstatic.com');
+    url.hostname.includes('gstatic.com') ||
+    // Firestore / Firebase: base de datos en vivo, nunca debe servirse
+    // desde una caché vieja.
+    url.hostname.includes('googleapis.com') ||
+    url.hostname.includes('firebaseio.com') ||
+    url.hostname.includes('firebaseapp.com');
 
   if (esDinamico || event.request.method !== 'GET') {
     // Dejar pasar directo a la red, sin intervenir

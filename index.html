@@ -748,9 +748,6 @@
 <script>
 /* ============== CONFIGURACIÓN ============== */
 const CONFIG = {
-  // Pegá acá la URL de tu Web App de Apps Script (termina en /exec)
-  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzxm0w6tL_dIVYqiMp4b4wRTjoLtICDap1us1p4WVwoRWpsZqM-zC7BI4ROC6MJ_lV-BQ/exec',
-
   // Client ID de OAuth de Google (tiene que ser el mismo que en Código.gs)
   GOOGLE_CLIENT_ID: '922655936984-eb35rn1hu1855l6b4939qvvl286h7l10.apps.googleusercontent.com',
 
@@ -970,8 +967,8 @@ window.addEventListener('load', function(){
   }
 });
 
-// Maneja una respuesta del Apps Script que indica que el token no es
-// válido o que el email no está en la lista permitida.
+// Maneja una respuesta que indica que el token no es válido o que el
+// email no está en la lista permitida.
 function esRespuestaNoAutorizada(data){
   if(data && data.auth === true){
     mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció.<br>Probá iniciar sesión nuevamente.');
@@ -979,48 +976,7 @@ function esRespuestaNoAutorizada(data){
   }
   return false;
 }
-
-// A diferencia de esRespuestaNoAutorizada (token inválido/vencido), esto es
-// para cuando el login es válido pero el rol no permite esa acción puntual.
-function esRespuestaSinPermiso(data){
-  if(data && data.sinPermiso === true){
-    alert('Tu usuario no tiene permiso para hacer esto.');
-    return true;
-  }
-  return false;
-}
-
-// El servidor devuelve este mensaje cuando se intenta editar/eliminar una
-// fila cuyo ID ya no existe en la planilla — típicamente porque otra
-// persona (u otro dispositivo) la borró o la editó justo antes. En ese
-// caso conviene refrescar solo, en vez de mostrar un error genérico.
-function esRespuestaNoEncontrado(data){
-  return !!(data && typeof data.error === 'string' && data.error.indexOf('No se encontró el registro') !== -1);
-}
 /* =============================================== */
-
-// Espera cierta cantidad de milisegundos (para el reintento de abajo).
-function esperar_(ms){
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Hace el fetch al Apps Script y, si falla (por ejemplo el clásico 404
-// transitorio que a veces devuelve Google en los Web Apps, sin relación
-// con el código), espera un instante y reintenta UNA vez antes de darse
-// por vencido. Esto es lo mismo que lograr forzando el refresh a mano,
-// pero automático.
-async function fetchConReintento_(url, opciones){
-  try{
-    const resp = await fetch(url, opciones);
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
-    return resp;
-  }catch(err){
-    await esperar_(1200);
-    const resp = await fetch(url, opciones);
-    if(!resp.ok) throw new Error('HTTP ' + resp.status);
-    return resp;
-  }
-}
 
 // Convierte un documento de Firestore ({id, usuario, fechaReal, fecha,
 // seccion, concepto, notas, productos:{...}}) al mismo formato plano tipo
