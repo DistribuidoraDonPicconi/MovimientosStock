@@ -16,6 +16,63 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
+<!-- Firebase: Auth (para vincular el login de Google) + Firestore (base de datos) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithCredential, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+  import {
+    getFirestore, collection, getDocs, doc, setDoc, deleteDoc
+  } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAlRhMWj6aK0Not-OQIWTL7QdKCdVQOBbk",
+    authDomain: "app-stock-b2689.firebaseapp.com",
+    projectId: "app-stock-b2689",
+    storageBucket: "app-stock-b2689.firebasestorage.app",
+    messagingSenderId: "378959969387",
+    appId: "1:378959969387:web:4b9b455a4cad30e2e9852e"
+  };
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const firebaseAuth = getAuth(firebaseApp);
+  const db = getFirestore(firebaseApp);
+
+  // Expuestos en window porque el resto del código (fuera de este módulo)
+  // todavía es JS clásico, no un módulo — así lo puede usar sin import.
+  window.firebaseDb = db;
+  window.firebaseAuth = firebaseAuth;
+  window.firebaseSignOut = () => signOut(firebaseAuth);
+
+  // Toma el id_token que ya devuelve el login de Google (Google Identity
+  // Services) y lo usa para autenticar TAMBIÉN contra Firebase, sin pedir
+  // un segundo login. Así, request.auth en las reglas de Firestore queda
+  // disponible usando el mismo botón de Google que ya tenías.
+  window.firebaseSignInConCredencialGoogle = async (idToken) => {
+    const credential = GoogleAuthProvider.credential(idToken);
+    return signInWithCredential(firebaseAuth, credential);
+  };
+
+  // Trae todos los documentos de la colección "movimientos" y los devuelve
+  // como array plano [{id, ...datos}, ...] — la conversión al formato que
+  // usa el resto de la app (columnas tipo planilla) se hace afuera de este
+  // módulo, en cargarDatos().
+  window.firestoreLeerMovimientos = async () => {
+    const snap = await getDocs(collection(db, "movimientos"));
+    const out = [];
+    snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+    return out;
+  };
+
+  // Crea o sobreescribe (si ya existe ese id) un documento en "movimientos".
+  window.firestoreGuardarMovimiento = async (id, datos) => {
+    await setDoc(doc(db, "movimientos", id), datos);
+  };
+
+  window.firestoreEliminarMovimiento = async (id) => {
+    await deleteDoc(doc(db, "movimientos", id));
+  };
+</script>
+
 <style>
   :root{
     --azul-osc: #16305c;
@@ -827,7 +884,20 @@ function handleCredentialResponse(response){
   localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
   lockError.textContent = '';
   lockScreen.classList.add('hidden');
-  cargarDatos();
+
+  // Autentica también contra Firebase con el mismo token de Google, para
+  // que las reglas de Firestore (request.auth != null) dejen pasar a este
+  // usuario. Si falla, se muestra la pantalla de login de nuevo: sin esto
+  // Firestore va a rechazar todas las lecturas/escrituras.
+  if(window.firebaseSignInConCredencialGoogle){
+    window.firebaseSignInConCredencialGoogle(idToken).then(() => {
+      cargarDatos();
+    }).catch((err) => {
+      mostrarPantallaLogin('No se pudo autenticar con Firebase.<br>' + (err && err.message ? err.message : ''));
+    });
+  }else{
+    cargarDatos();
+  }
 }
 
 document.getElementById('btn-logout').addEventListener('click', () => {
@@ -840,6 +910,7 @@ document.getElementById('confirm-cancelar').addEventListener('click', () => {
 
 document.getElementById('confirm-aceptar').addEventListener('click', () => {
   document.getElementById('confirm-modal').classList.add('hidden');
+  if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
   mostrarPantallaLogin('');
 });
 
@@ -864,7 +935,17 @@ window.addEventListener('load', function(){
     rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || 'sin_permisos';
     emailActual = String((payloadGuardado && payloadGuardado.email) || '');
     lockScreen.classList.add('hidden');
-    cargarDatos();
+    if(window.firebaseSignInConCredencialGoogle){
+      window.firebaseSignInConCredencialGoogle(idToken).then(() => {
+        cargarDatos();
+      }).catch(() => {
+        // El token guardado ya venció para Firebase (dura ~1hs): se pide
+        // login de nuevo en vez de mostrar una app que no puede leer datos.
+        mostrarPantallaLogin('Tu sesión venció.<br>Iniciá sesión de nuevo.');
+      });
+    }else{
+      cargarDatos();
+    }
   }else if(window.google && google.accounts && google.accounts.id){
     lockLoading.textContent = 'Buscando sesión de Google...';
     google.accounts.id.prompt((notif) => {
@@ -925,24 +1006,41 @@ async function fetchConReintento_(url, opciones){
   }
 }
 
+// Convierte un documento de Firestore ({id, usuario, fechaReal, fecha,
+// seccion, concepto, notas, productos:{...}}) al mismo formato plano tipo
+// "fila de planilla" que usa el resto de la app (ID, Usuario, Fecha, etc).
+// Así calcularStock(), render() y todo lo demás siguen funcionando igual
+// que cuando los datos venían del Google Sheet.
+function firestoreDocAFilaPlana_(docData){
+  const fila = {
+    'ID': docData.id,
+    'Usuario': docData.usuario || '',
+    'Fecha Real': docData.fechaReal || '',
+    'Fecha': docData.fecha || '',
+    'Sección': docData.seccion || '',
+    'Concepto': docData.concepto || '',
+    'Notas': docData.notas || ''
+  };
+  CONFIG.PRODUCTOS.forEach(p => {
+    const val = docData.productos ? docData.productos[p] : undefined;
+    fila[p] = (val === undefined || val === null) ? '' : val;
+  });
+  return fila;
+}
+
 async function cargarDatos(forzar){
   btnRefresh.classList.add('spinning');
   try{
-    let url = CONFIG.APPS_SCRIPT_URL + '?id_token=' + encodeURIComponent(idToken || '');
-    if(forzar) url += '&forzar=1';
-    const resp = await fetchConReintento_(url, {cache:'no-store'});
-    const data = await resp.json();
-    if(data && data.error){
-      movimientos = [];
-      if(esRespuestaNoAutorizada(data)) return;
-      mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos: ${data.error}</div>`;
-      return;
-    }
-    movimientos = data;
+    const docs = await window.firestoreLeerMovimientos();
+    movimientos = docs.map(firestoreDocAFilaPlana_);
     if(currentTab === 'movimientos') irAlFondoMovimientos = true;
     render();
   }catch(err){
-    mainEl.innerHTML = `<div class="state-msg error">No se pudo cargar el Google Sheet.<br>${err.message}<br><br>Revisá que CONFIG.APPS_SCRIPT_URL esté bien configurada.</div>`;
+    if(err && err.code === 'permission-denied'){
+      esRespuestaNoAutorizada({auth: true});
+      return;
+    }
+    mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos.<br>${err.message}</div>`;
   }finally{
     btnRefresh.classList.remove('spinning');
   }
@@ -1539,31 +1637,7 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
   btnAceptar.disabled = true;
   btnAceptar.textContent = 'Eliminando...';
   try{
-    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ accion: 'eliminar', id: idBorrar, idToken: idToken || '' })
-    });
-    const data = await resp.json();
-    if(data && data.error){
-      if(esRespuestaNoAutorizada(data)){
-        confirmEliminarModal.classList.add('hidden');
-        idAEliminar = null;
-        return;
-      }
-      if(esRespuestaSinPermiso(data)){
-        confirmEliminarModal.classList.add('hidden');
-        idAEliminar = null;
-        return;
-      }
-      if(esRespuestaNoEncontrado(data)){
-        confirmEliminarModal.classList.add('hidden');
-        idAEliminar = null;
-        alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
-        await cargarDatos(true);
-        return;
-      }
-      throw new Error(data.error);
-    }
+    await window.firestoreEliminarMovimiento(idBorrar);
 
     movimientos = movimientos.filter(m => String(m['ID']) !== String(idBorrar));
     if(currentTab === 'movimientos') irAlFondoMovimientos = true;
@@ -1572,6 +1646,12 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
     idAEliminar = null;
     render();
   }catch(err){
+    if(err && err.code === 'permission-denied'){
+      confirmEliminarModal.classList.add('hidden');
+      idAEliminar = null;
+      alert('Tu usuario no tiene permiso para hacer esto.');
+      return;
+    }
     alert('No se pudo eliminar: ' + err.message);
   }finally{
     btnAceptar.disabled = false;
@@ -1788,37 +1868,37 @@ btnGuardar.addEventListener('click', async () => {
     fecha: nmFecha.value,
     productos
   };
-  if(nmEditId.value) payload.id = nmEditId.value;
-  payload.idToken = idToken || '';
+  const esEdicion = !!nmEditId.value;
+  const idFinal = esEdicion ? nmEditId.value : (crypto.randomUUID().split('-')[0]);
 
   btnGuardar.disabled = true;
   btnGuardar.textContent = 'Guardando...';
 
   try{
-    const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify(payload)
+    // Mismo formato que ya quedó cargado en Firestore por la migración:
+    // id + usuario/fecha/seccion/concepto/notas + productos anidados.
+    const docFirestore = {
+      id: idFinal,
+      usuario: payload.usuario,
+      fechaReal: esEdicion
+        ? ((movEnEdicion && movEnEdicion['Fecha Real']) || new Date().toISOString())
+        : new Date().toISOString(),
+      fecha: payload.fecha,
+      seccion: payload.seccion,
+      concepto: payload.concepto,
+      notas: payload.notas,
+      productos: {}
+    };
+    CONFIG.PRODUCTOS.forEach(p => {
+      const val = productos[p];
+      if(val !== undefined && val !== null && val !== ''){
+        const num = parseFloat(String(val).replace(',', '.'));
+        if(!isNaN(num)) docFirestore.productos[p] = num;
+      }
     });
-    const data = await resp.json();
-    if(data && data.error){
-      if(esRespuestaNoAutorizada(data)){
-        cerrarNuevoModal();
-        return;
-      }
-      if(esRespuestaSinPermiso(data)){
-        cerrarNuevoModal();
-        return;
-      }
-      if(esRespuestaNoEncontrado(data)){
-        cerrarNuevoModal();
-        alert('Ese movimiento ya no existe (alguien lo borró o editó desde otro dispositivo). Actualizando la lista...');
-        await cargarDatos(true);
-        return;
-      }
-      throw new Error(data.error);
-    }
 
-    const idFinal = (data && data.id) ? data.id : nmEditId.value;
+    await window.firestoreGuardarMovimiento(idFinal, docFirestore);
+
     const movGuardado = construirMovimientoLocal(payload, idFinal, movEnEdicion);
     const idx = movimientos.findIndex(m => String(m['ID']) === String(idFinal));
     if(idx !== -1){
@@ -1831,6 +1911,11 @@ btnGuardar.addEventListener('click', async () => {
     cerrarNuevoModal();
     render();
   }catch(err){
+    if(err && err.code === 'permission-denied'){
+      cerrarNuevoModal();
+      alert('Tu usuario no tiene permiso para hacer esto.');
+      return;
+    }
     nuevoError.textContent = 'No se pudo guardar: ' + err.message;
   }finally{
     btnGuardar.disabled = false;
