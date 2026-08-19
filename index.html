@@ -893,6 +893,16 @@ function handleCredentialResponse(response){
   idToken = response.credential;
   rolActual = CONFIG.ROLES[String(payload.email || '').toLowerCase()] || 'sin_permisos';
   emailActual = String(payload.email || '');
+
+  // Si el email no está en la lista, cortamos acá mismo: ni guardamos el
+  // token ni intentamos autenticar contra Firebase. Mismo criterio que las
+  // apps de Saldos y Plata.
+  if(rolActual === 'sin_permisos'){
+    if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
+    mostrarPantallaLogin('Tu cuenta (' + emailActual + ') no tiene acceso a esta app.');
+    return;
+  }
+
   localStorage.setItem(ID_TOKEN_KEY, idToken);
   localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
   lockError.textContent = '';
@@ -947,6 +957,15 @@ window.addEventListener('load', function(){
     idToken = tokenGuardado;
     rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || 'sin_permisos';
     emailActual = String((payloadGuardado && payloadGuardado.email) || '');
+
+    // Mismo corte inmediato que en handleCredentialResponse: si el email
+    // guardado ya no está en la lista (por ejemplo, se lo dio de baja),
+    // no lo dejamos entrar con el token viejo.
+    if(rolActual === 'sin_permisos'){
+      mostrarPantallaLogin('Tu cuenta (' + emailActual + ') no tiene acceso a esta app.');
+      return;
+    }
+
     lockScreen.classList.add('hidden');
     if(window.firebaseSignInConCredencialGoogle){
       window.firebaseSignInConCredencialGoogle(idToken).then(() => {
