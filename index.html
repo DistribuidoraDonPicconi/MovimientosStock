@@ -797,9 +797,24 @@ const resumenSeccionEl = document.getElementById('resumen-seccion');
 const resumenConceptoEl = document.getElementById('resumen-concepto');
 let resumenRango = 'esta-semana';
 
+// Convierte el valor guardado en "Fecha" a un objeto Date en horario LOCAL.
+// Se usa en todos los lugares que antes hacían new Date(mov['Fecha']) a
+// secas, porque un string "YYYY-MM-DD" sin hora, JS lo toma como
+// medianoche UTC — y en Argentina (UTC-3) eso cae en el día anterior.
+function parseFechaLocal_(valor){
+  if(!valor) return new Date(NaN);
+  if(typeof valor === 'string'){
+    const m = valor.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m){
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+  }
+  return new Date(valor);
+}
+
 function formatFecha(valor){
   if(!valor) return '-';
-  const d = new Date(valor);
+  const d = parseFechaLocal_(valor);
   if(isNaN(d)) return String(valor);
   const dd = String(d.getDate()).padStart(2,'0');
   const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -1056,7 +1071,7 @@ function calcularStock(){
       const cant = parseFloat(mov[p]);
       if(!isNaN(cant) && cant !== 0){
         stock[p].total += cant;
-        const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+        const f = parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]);
         if(!isNaN(f) && (!stock[p].ultimaFecha || f > stock[p].ultimaFecha)){
           stock[p].ultimaFecha = f;
         }
@@ -1228,7 +1243,7 @@ function actualizarOpcionesConcepto(){
   const conceptos = new Set();
   if(desde && hasta){
     movimientos.forEach(mov => {
-      const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+      const f = parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]);
       if(isNaN(f) || f < desde || f > hasta) return;
       if(!seccionCoincide(mov, seccion)) return;
       const concepto = (mov['Concepto'] || '').trim();
@@ -1255,7 +1270,7 @@ function calcularResumen(){
   if(!desde || !hasta) return resumen;
 
   movimientos.forEach(mov => {
-    const f = new Date(mov[CONFIG.CAMPO_FECHA]);
+    const f = parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]);
     if(isNaN(f) || f < desde || f > hasta) return;
     if(!seccionCoincide(mov, seccion)) return;
     if(concepto && (mov['Concepto'] || '').trim() !== concepto) return;
@@ -1779,7 +1794,7 @@ function abrirNuevoModal(mov, modoEditar){
   nmNotas.value = precargar ? (mov['Notas'] || '') : '';
   nmUsuario.value = emailActual;
   nmFecha.value = precargar && mov[CONFIG.CAMPO_FECHA]
-    ? fechaLocalInput(new Date(mov[CONFIG.CAMPO_FECHA]))
+    ? fechaLocalInput(parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]))
     : fechaLocalInput(new Date());
 
   document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
