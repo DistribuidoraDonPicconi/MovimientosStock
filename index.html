@@ -1571,14 +1571,11 @@ function restaurarScroll(){
   if(currentTab === 'movimientos'){
     const movScroll = document.getElementById('mov-scroll');
     if(movScroll){
-      if(irAlFondoMovimientos){
-        movScroll.scrollTop = movScroll.scrollHeight;
-        movScroll.scrollLeft = 0;
-        irAlFondoMovimientos = false;
-      }else{
-        movScroll.scrollTop = scrollState.movimientos.top;
-        movScroll.scrollLeft = scrollState.movimientos.left;
-      }
+      // La vista predeterminada de Movimientos es siempre abajo del todo
+      // (últimos registros) y pegada a la izquierda, sin importar en qué
+      // posición haya quedado la tabla la vez anterior.
+      movScroll.scrollTop = movScroll.scrollHeight;
+      movScroll.scrollLeft = 0;
     }
   }else if(currentTab === 'resumen'){
     mainEl.scrollTop = scrollState.resumen;
