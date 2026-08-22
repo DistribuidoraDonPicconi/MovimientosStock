@@ -686,6 +686,9 @@
         <button class="icon-btn hidden" id="btn-compartir" aria-label="Compartir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
+        <button class="icon-btn hidden" id="btn-descargar" aria-label="Enviar movimientos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
         <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         </button>
@@ -785,6 +788,7 @@ const searchWrapEl = document.getElementById('search-wrap');
 const headerTitle = document.getElementById('header-title');
 const btnRefresh = document.getElementById('btn-refresh');
 const btnCompartir = document.getElementById('btn-compartir');
+const btnDescargar = document.getElementById('btn-descargar');
 const appEl = document.getElementById('app');
 const resumenControlsEl = document.getElementById('resumen-controls');
 const resumenPersonalizadoEl = document.getElementById('resumen-personalizado');
@@ -1439,6 +1443,92 @@ function renderMovimientos(filtro){
   actualizarSeleccionUI();
 }
 
+// Arma el CSV de todos los movimientos (mismas columnas que la tabla) y
+// devuelve el Blob + nombre de archivo listos para descargar o compartir.
+function armarCsvMovimientos(){
+  // Escapa un valor para CSV: si tiene coma, comilla o salto de línea, lo
+  // envuelve entre comillas dobles y duplica las comillas internas.
+  function celdaCsv(valor){
+    const texto = String(valor === undefined || valor === null ? '' : valor);
+    if(/[",\n;]/.test(texto)){
+      return '"' + texto.replace(/"/g, '""') + '"';
+    }
+    return texto;
+  }
+
+  const encabezados = [
+    'Fecha', 'Sección', 'Concepto', 'Notas',
+    ...CONFIG.PRODUCTOS,
+    'Cajas total', 'Usuario'
+  ];
+
+  const filas = movimientos.map(mov => {
+    const fila = [
+      formatFecha(mov[CONFIG.CAMPO_FECHA]),
+      mov['Sección'] || '',
+      mov['Concepto'] || '',
+      mov['Notas'] || ''
+    ];
+    CONFIG.PRODUCTOS.forEach(p => {
+      const val = parseFloat(mov[p]);
+      fila.push(val ? formatNum(val) : '');
+    });
+    const cajasTotal = calcularCajasTotal(mov);
+    fila.push(cajasTotal ? formatNum(cajasTotal) : '');
+    fila.push(mov['Usuario'] || '');
+    return fila.map(celdaCsv).join(';');
+  });
+
+  // BOM al inicio para que Excel detecte UTF-8 y no rompa tildes/ñ.
+  const contenido = '\uFEFF' + encabezados.map(celdaCsv).join(';') + '\n' + filas.join('\n');
+  const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+  const hoy = fechaLocalInput(new Date());
+  const nombreArchivo = `movimientos_stock_${hoy}.csv`;
+  return { blob, nombreArchivo };
+}
+
+function descargarBlob(blob, nombreArchivo){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombreArchivo;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Al tocar el botón: intenta abrir el menú nativo de "Compartir" del
+// celular con el archivo adjunto (ahí aparece WhatsApp como una de las
+// apps). Si el navegador no soporta compartir archivos (por ejemplo en
+// PC), descarga el CSV como respaldo para adjuntarlo a mano.
+async function descargarMovimientosCsv(){
+  if(!movimientos.length){
+    alert('No hay movimientos para descargar.');
+    return;
+  }
+
+  const { blob, nombreArchivo } = armarCsvMovimientos();
+  const archivo = new File([blob], nombreArchivo, { type: 'text/csv' });
+
+  if(navigator.canShare && navigator.canShare({ files: [archivo] })){
+    try{
+      await navigator.share({
+        files: [archivo],
+        title: 'Movimientos de Stock'
+      });
+      return;
+    }catch(err){
+      if(err && err.name === 'AbortError') return; // el usuario canceló
+      // si falla el compartir nativo, seguimos abajo con la descarga
+    }
+  }
+
+  descargarBlob(blob, nombreArchivo);
+}
+
+btnDescargar.addEventListener('click', descargarMovimientosCsv);
+
 // Guarda la posición de scroll de cada pestaña para restaurarla al volver
 const scrollState = {
   stock: 0,
@@ -1492,6 +1582,7 @@ function render(){
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
   fabNuevo.classList.toggle('hidden', currentTab !== 'movimientos' || !puedeAgregar());
   btnCompartir.classList.toggle('hidden', currentTab !== 'stock');
+  btnDescargar.classList.toggle('hidden', currentTab !== 'movimientos');
   if(currentTab === 'stock'){
     headerTitle.textContent = 'Stock';
     renderStock(filtro);
