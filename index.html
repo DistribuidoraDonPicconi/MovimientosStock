@@ -1495,13 +1495,25 @@ function descargarBlob(blob, nombreArchivo){
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Se demora un toque el revoke: si se libera la URL en el mismo instante
+  // del click, en algunos navegadores el diálogo de "Guardar como" llega a
+  // abrirse sin datos detrás y la descarga queda vacía o se corta.
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-// Al tocar el botón: intenta abrir el menú nativo de "Compartir" del
-// celular con el archivo adjunto (ahí aparece WhatsApp como una de las
-// apps). Si el navegador no soporta compartir archivos (por ejemplo en
-// PC), descarga el CSV como respaldo para adjuntarlo a mano.
+// Detecta celular (Android/iPhone), donde el "compartir con archivo" del
+// navegador abre el menú nativo con WhatsApp como opción y funciona bien.
+// En PC, ese mismo compartir nativo abre un panel de Windows pensado para
+// otra cosa y corta la descarga antes de poder elegir dónde guardarla, así
+// que ahí directamente se descarga el archivo.
+function esMovil(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
+
+// Al tocar el botón: en celular intenta abrir el menú nativo de "Compartir"
+// con el archivo adjunto (ahí aparece WhatsApp entre las opciones). En PC,
+// o si el navegador no soporta compartir archivos, descarga el CSV directo
+// para adjuntarlo a mano.
 async function descargarMovimientosCsv(){
   if(!movimientos.length){
     alert('No hay movimientos para descargar.');
@@ -1511,7 +1523,7 @@ async function descargarMovimientosCsv(){
   const { blob, nombreArchivo } = armarCsvMovimientos();
   const archivo = new File([blob], nombreArchivo, { type: 'text/csv' });
 
-  if(navigator.canShare && navigator.canShare({ files: [archivo] })){
+  if(esMovil() && navigator.canShare && navigator.canShare({ files: [archivo] })){
     try{
       await navigator.share({
         files: [archivo],
@@ -1582,7 +1594,7 @@ function render(){
   mainEl.classList.toggle('grid-mode', currentTab === 'movimientos');
   fabNuevo.classList.toggle('hidden', currentTab !== 'movimientos' || !puedeAgregar());
   btnCompartir.classList.toggle('hidden', currentTab !== 'stock');
-  btnDescargar.classList.toggle('hidden', currentTab !== 'movimientos');
+  btnDescargar.classList.toggle('hidden', currentTab !== 'movimientos' || !esAdmin());
   if(currentTab === 'stock'){
     headerTitle.textContent = 'Stock';
     renderStock(filtro);
