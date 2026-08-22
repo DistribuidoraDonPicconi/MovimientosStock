@@ -891,13 +891,15 @@ function handleCredentialResponse(response){
     return;
   }
   idToken = response.credential;
-  rolActual = CONFIG.ROLES[String(payload.email || '').toLowerCase()] || 'sin_permisos';
+  const emailNormalizado = String(payload.email || '').toLowerCase();
+  rolActual = CONFIG.ROLES[emailNormalizado] || null;
   emailActual = String(payload.email || '');
 
-  // Si el email no está en la lista, cortamos acá mismo: ni guardamos el
-  // token ni intentamos autenticar contra Firebase. Mismo criterio que las
-  // apps de Saldos y Plata.
-  if(rolActual === 'sin_permisos'){
+  // Si el email directamente no figura en la lista de roles, cortamos acá:
+  // ni guardamos el token ni intentamos autenticar contra Firebase.
+  // 'sin_permisos' SÍ está en la lista y entra, pero en modo solo lectura
+  // (puedeAgregar()/esAdmin() ya devuelven false para ese rol).
+  if(!rolActual){
     if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
     mostrarPantallaLogin('Tu cuenta (' + emailActual + ') no tiene acceso a esta app.');
     return;
@@ -955,13 +957,13 @@ window.addEventListener('load', function(){
   if(tokenGuardado && expGuardado > Date.now()){
     const payloadGuardado = decodificarJwt(tokenGuardado);
     idToken = tokenGuardado;
-    rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || 'sin_permisos';
+    rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || null;
     emailActual = String((payloadGuardado && payloadGuardado.email) || '');
 
     // Mismo corte inmediato que en handleCredentialResponse: si el email
-    // guardado ya no está en la lista (por ejemplo, se lo dio de baja),
-    // no lo dejamos entrar con el token viejo.
-    if(rolActual === 'sin_permisos'){
+    // guardado ya no figura en la lista de roles (por ejemplo, se lo dio de
+    // baja), no lo dejamos entrar con el token viejo.
+    if(!rolActual){
       mostrarPantallaLogin('Tu cuenta (' + emailActual + ') no tiene acceso a esta app.');
       return;
     }
