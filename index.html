@@ -15,6 +15,7 @@
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- Firebase: Auth (para vincular el login de Google) + Firestore (base de datos) -->
 <script type="module">
@@ -686,8 +687,8 @@
         <button class="icon-btn hidden" id="btn-compartir" aria-label="Compartir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
-        <button class="icon-btn hidden" id="btn-descargar" aria-label="Enviar movimientos">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <button class="icon-btn hidden" id="btn-descargar" aria-label="Descargar Excel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         </button>
         <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -1443,47 +1444,29 @@ function renderMovimientos(filtro){
   actualizarSeleccionUI();
 }
 
-// Arma el CSV de todos los movimientos (mismas columnas que la tabla) y
+// Arma el Excel de todos los movimientos (mismas columnas que la tabla) y
 // devuelve el Blob + nombre de archivo listos para descargar o compartir.
-function armarCsvMovimientos(){
-  // Escapa un valor para CSV: si tiene coma, comilla o salto de línea, lo
-  // envuelve entre comillas dobles y duplica las comillas internas.
-  function celdaCsv(valor){
-    const texto = String(valor === undefined || valor === null ? '' : valor);
-    if(/[",\n;]/.test(texto)){
-      return '"' + texto.replace(/"/g, '""') + '"';
-    }
-    return texto;
-  }
-
-  const encabezados = [
-    'Fecha', 'Sección', 'Concepto', 'Notas',
-    ...CONFIG.PRODUCTOS,
-    'Cajas total', 'Usuario'
-  ];
-
+function armarExcelMovimientos(){
   const filas = movimientos.map(mov => {
-    const fila = [
-      formatFecha(mov[CONFIG.CAMPO_FECHA]),
-      mov['Sección'] || '',
-      mov['Concepto'] || '',
-      mov['Notas'] || ''
-    ];
-    CONFIG.PRODUCTOS.forEach(p => {
-      const val = parseFloat(mov[p]);
-      fila.push(val ? formatNum(val) : '');
-    });
-    const cajasTotal = calcularCajasTotal(mov);
-    fila.push(cajasTotal ? formatNum(cajasTotal) : '');
-    fila.push(mov['Usuario'] || '');
-    return fila.map(celdaCsv).join(';');
+    const fila = {
+      'Fecha': formatFecha(mov[CONFIG.CAMPO_FECHA]),
+      'Sección': mov['Sección'] || '',
+      'Concepto': mov['Concepto'] || '',
+      'Notas': mov['Notas'] || ''
+    };
+    CONFIG.PRODUCTOS.forEach(p => { fila[p] = parseFloat(mov[p]) || 0; });
+    fila['Cajas total'] = calcularCajasTotal(mov) || 0;
+    fila['Usuario'] = mov['Usuario'] || '';
+    return fila;
   });
 
-  // BOM al inicio para que Excel detecte UTF-8 y no rompa tildes/ñ.
-  const contenido = '\uFEFF' + encabezados.map(celdaCsv).join(';') + '\n' + filas.join('\n');
-  const blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+  const hoja = XLSX.utils.json_to_sheet(filas);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja, 'Movimientos');
+  const buffer = XLSX.write(libro, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const hoy = fechaLocalInput(new Date());
-  const nombreArchivo = `movimientos_stock_${hoy}.csv`;
+  const nombreArchivo = `movimientos_stock_${hoy}.xlsx`;
   return { blob, nombreArchivo };
 }
 
@@ -1512,16 +1495,16 @@ function esMovil(){
 
 // Al tocar el botón: en celular intenta abrir el menú nativo de "Compartir"
 // con el archivo adjunto (ahí aparece WhatsApp entre las opciones). En PC,
-// o si el navegador no soporta compartir archivos, descarga el CSV directo
+// o si el navegador no soporta compartir archivos, descarga el Excel directo
 // para adjuntarlo a mano.
-async function descargarMovimientosCsv(){
+async function descargarMovimientosExcel(){
   if(!movimientos.length){
     alert('No hay movimientos para descargar.');
     return;
   }
 
-  const { blob, nombreArchivo } = armarCsvMovimientos();
-  const archivo = new File([blob], nombreArchivo, { type: 'text/csv' });
+  const { blob, nombreArchivo } = armarExcelMovimientos();
+  const archivo = new File([blob], nombreArchivo, { type: blob.type });
 
   if(esMovil() && navigator.canShare && navigator.canShare({ files: [archivo] })){
     try{
@@ -1539,7 +1522,7 @@ async function descargarMovimientosCsv(){
   descargarBlob(blob, nombreArchivo);
 }
 
-btnDescargar.addEventListener('click', descargarMovimientosCsv);
+btnDescargar.addEventListener('click', descargarMovimientosExcel);
 
 // Guarda la posición de scroll de cada pestaña para restaurarla al volver
 const scrollState = {
