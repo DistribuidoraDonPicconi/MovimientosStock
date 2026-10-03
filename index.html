@@ -20,7 +20,7 @@
 <!-- Firebase: Auth (para vincular el login de Google) + Firestore (base de datos) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithCredential, signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithCredential, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
   import {
     getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy
   } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
@@ -43,6 +43,8 @@
   window.firebaseDb = db;
   window.firebaseAuth = firebaseAuth;
   window.firebaseSignOut = () => signOut(firebaseAuth);
+  // Única fuente de verdad de la sesión: Firebase Auth (persiste sola y renueva el token).
+  window.firebaseOnAuth = (cb) => onAuthStateChanged(firebaseAuth, cb);
 
   // Toma el id_token que ya devuelve el login de Google (Google Identity
   // Services) y lo usa para autenticar TAMBIÉN contra Firebase, sin pedir
@@ -844,14 +846,15 @@ function formatNum(n){
 }
 
 /* ============== Login con Google ============== */
-const ID_TOKEN_KEY = 'dp_stock_id_token';
-const ID_TOKEN_EXP_KEY = 'dp_stock_id_token_exp';
+// La sesión la maneja Firebase Auth (persiste sola entre visitas y renueva
+// el token en segundo plano). Ya no se guarda el id_token de Google a mano:
+// ese dura 1 hora y era lo que obligaba a loguearse de nuevo todo el tiempo.
 const lockScreen = document.getElementById('lock-screen');
 const lockError = document.getElementById('lock-error');
 const lockLoading = document.getElementById('lock-loading');
-let idToken = null;
 let rolActual = null;
 let emailActual = '';
+let datosCargadosPara = null; // evita recargar datos si Firebase repite el mismo usuario
 
 function puedeAgregar(){
   return rolActual === 'admin' || rolActual === 'colaborador';
@@ -860,27 +863,10 @@ function esAdmin(){
   return rolActual === 'admin';
 }
 
-// Decodifica el JWT del login de Google solo para leer el email
-// (el chequeo real de validez se hace en el Apps Script).
-function decodificarJwt(token){
-  try{
-    const payload = token.split('.')[1];
-    const json = decodeURIComponent(
-      atob(payload.replace(/-/g,'+').replace(/_/g,'/'))
-        .split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
-    );
-    return JSON.parse(json);
-  }catch(err){
-    return null;
-  }
-}
-
 function mostrarPantallaLogin(mensajeError){
-  idToken = null;
   rolActual = null;
   emailActual = '';
-  localStorage.removeItem(ID_TOKEN_KEY);
-  localStorage.removeItem(ID_TOKEN_EXP_KEY);
+  datosCargadosPara = null;
   lockError.innerHTML = mensajeError || '';
   lockLoading.textContent = '';
   lockScreen.classList.remove('hidden');
@@ -889,45 +875,18 @@ function mostrarPantallaLogin(mensajeError){
   }
 }
 
+// El botón de Google entrega un id_token; se lo pasamos a Firebase y listo.
+// El resto (rol, ocultar login, cargar datos) lo hace onAuthStateChanged.
 function handleCredentialResponse(response){
-  const payload = decodificarJwt(response.credential);
-  if(!payload){
-    mostrarPantallaLogin('No se pudo procesar el inicio de sesión.');
-    return;
-  }
-  idToken = response.credential;
-  const emailNormalizado = String(payload.email || '').toLowerCase();
-  rolActual = CONFIG.ROLES[emailNormalizado] || null;
-  emailActual = String(payload.email || '');
-
-  // Si el email directamente no figura en la lista de roles, cortamos acá:
-  // ni guardamos el token ni intentamos autenticar contra Firebase.
-  // 'sin_permisos' SÍ está en la lista y entra, pero en modo solo lectura
-  // (puedeAgregar()/esAdmin() ya devuelven false para ese rol).
-  if(!rolActual){
-    if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
-    mostrarPantallaLogin('Tu cuenta (' + emailActual + ') no tiene acceso a esta app.');
-    return;
-  }
-
-  localStorage.setItem(ID_TOKEN_KEY, idToken);
-  localStorage.setItem(ID_TOKEN_EXP_KEY, String(payload.exp * 1000));
   lockError.textContent = '';
-  lockScreen.classList.add('hidden');
-
-  // Autentica también contra Firebase con el mismo token de Google, para
-  // que las reglas de Firestore (request.auth != null) dejen pasar a este
-  // usuario. Si falla, se muestra la pantalla de login de nuevo: sin esto
-  // Firestore va a rechazar todas las lecturas/escrituras.
-  if(window.firebaseSignInConCredencialGoogle){
-    window.firebaseSignInConCredencialGoogle(idToken).then(() => {
-      cargarDatos();
-    }).catch((err) => {
-      mostrarPantallaLogin('No se pudo autenticar con Firebase.<br>' + (err && err.message ? err.message : ''));
-    });
-  }else{
-    cargarDatos();
+  lockLoading.textContent = 'Iniciando sesión...';
+  if(!window.firebaseSignInConCredencialGoogle){
+    mostrarPantallaLogin('Todavía no cargó Firebase. Probá de nuevo en unos segundos.');
+    return;
   }
+  window.firebaseSignInConCredencialGoogle(response.credential).catch((err) => {
+    mostrarPantallaLogin('No se pudo autenticar con Firebase.<br>' + (err && err.message ? err.message : ''));
+  });
 }
 
 document.getElementById('btn-logout').addEventListener('click', () => {
@@ -944,6 +903,36 @@ document.getElementById('confirm-aceptar').addEventListener('click', () => {
   mostrarPantallaLogin('');
 });
 
+function iniciarSesionFirebase(){
+  // El módulo de Firebase carga async: esperamos a que esté listo.
+  if(!window.firebaseOnAuth){
+    setTimeout(iniciarSesionFirebase, 100);
+    return;
+  }
+  window.firebaseOnAuth((user) => {
+    if(!user){
+      mostrarPantallaLogin(lockError.innerHTML);
+      return;
+    }
+    const email = String(user.email || '').toLowerCase();
+    const rol = CONFIG.ROLES[email] || null;
+    if(!rol){
+      window.firebaseSignOut().catch(() => {});
+      mostrarPantallaLogin('Tu cuenta (' + (user.email || '') + ') no tiene acceso a esta app.');
+      return;
+    }
+    emailActual = String(user.email || '');
+    rolActual = rol;
+    lockError.textContent = '';
+    lockLoading.textContent = '';
+    lockScreen.classList.add('hidden');
+    if(datosCargadosPara !== email){
+      datosCargadosPara = email;
+      cargarDatos();
+    }
+  });
+}
+
 window.addEventListener('load', function(){
   if(window.google && google.accounts && google.accounts.id){
     google.accounts.id.initialize({
@@ -955,48 +944,16 @@ window.addEventListener('load', function(){
       theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 260
     });
   }
-
-  const tokenGuardado = localStorage.getItem(ID_TOKEN_KEY);
-  const expGuardado = Number(localStorage.getItem(ID_TOKEN_EXP_KEY) || 0);
-
-  if(tokenGuardado && expGuardado > Date.now()){
-    const payloadGuardado = decodificarJwt(tokenGuardado);
-    idToken = tokenGuardado;
-    rolActual = CONFIG.ROLES[String((payloadGuardado && payloadGuardado.email) || '').toLowerCase()] || null;
-    emailActual = String((payloadGuardado && payloadGuardado.email) || '');
-
-    // Mismo corte inmediato que en handleCredentialResponse: si el email
-    // guardado ya no figura en la lista de roles (por ejemplo, se lo dio de
-    // baja), no lo dejamos entrar con el token viejo.
-    if(!rolActual){
-      mostrarPantallaLogin('Tu cuenta (' + emailActual + ') no tiene acceso a esta app.');
-      return;
-    }
-
-    lockScreen.classList.add('hidden');
-    if(window.firebaseSignInConCredencialGoogle){
-      window.firebaseSignInConCredencialGoogle(idToken).then(() => {
-        cargarDatos();
-      }).catch(() => {
-        // El token guardado ya venció para Firebase (dura ~1hs): se pide
-        // login de nuevo en vez de mostrar una app que no puede leer datos.
-        mostrarPantallaLogin('Tu sesión venció.<br>Iniciá sesión de nuevo.');
-      });
-    }else{
-      cargarDatos();
-    }
-  }else if(window.google && google.accounts && google.accounts.id){
-    lockLoading.textContent = 'Buscando sesión de Google...';
-    google.accounts.id.prompt((notif) => {
-      lockLoading.textContent = '';
-    });
-  }
+  iniciarSesionFirebase();
 });
 
 // Maneja una respuesta que indica que el token no es válido o que el
 // email no está en la lista permitida.
 function esRespuestaNoAutorizada(data){
   if(data && data.auth === true){
+    // Cerramos también la sesión de Firebase: si no, al volver a loguear con el
+    // mismo usuario onAuthStateChanged no se dispara y quedaría la pantalla trabada.
+    if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
     mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció.<br>Probá iniciar sesión nuevamente.');
     return true;
   }
