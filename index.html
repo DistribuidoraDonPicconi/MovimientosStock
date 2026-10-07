@@ -369,8 +369,8 @@
   .lock-box .lock-error{
     color:var(--rojo); font-size:14px; font-weight:600; margin-top:14px; min-height:16px;
   }
-  .lock-box .lock-loading{
-    color:var(--texto-tenue); font-size:14px; margin-top:6px; min-height:16px;
+  .lock-box .lock-checking{
+    color:var(--texto-tenue); font-size:14px; margin-top:6px; min-height:44px;
   }
 
   /* Modal de confirmación (cerrar sesión) */
@@ -565,10 +565,10 @@
 <div id="lock-screen">
   <div class="lock-box">
     <div class="lock-logo"><img src="icon-512.png" alt="Stock DP"></div>
-    <h2>Acceso restringido</h2>
-    <p>Iniciá sesión con tu cuenta de Google</p>
-    <div id="google-btn"></div>
-    <div class="lock-loading" id="lock-loading"></div>
+    <h2>Stock</h2>
+    <p>Distribuidora Don Picconi</p>
+    <div class="lock-checking" id="lock-checking">Verificando sesión...</div>
+    <div id="google-btn" style="display:none;"></div>
     <div class="lock-error" id="lock-error"></div>
   </div>
 </div>
@@ -851,7 +851,9 @@ function formatNum(n){
 // ese dura 1 hora y era lo que obligaba a loguearse de nuevo todo el tiempo.
 const lockScreen = document.getElementById('lock-screen');
 const lockError = document.getElementById('lock-error');
-const lockLoading = document.getElementById('lock-loading');
+const lockChecking = document.getElementById('lock-checking');
+const googleBtn = document.getElementById('google-btn');
+let sesionResuelta = false; // pasa a true cuando Firebase responde por primera vez
 let rolActual = null;
 let emailActual = '';
 let datosCargadosPara = null; // evita recargar datos si Firebase repite el mismo usuario
@@ -863,12 +865,21 @@ function esAdmin(){
   return rolActual === 'admin';
 }
 
+// Mientras no sabemos si hay sesión: solo el texto, sin botón de Google.
+function mostrarVerificando(texto){
+  lockChecking.textContent = texto || 'Verificando sesión...';
+  lockChecking.style.display = 'block';
+  googleBtn.style.display = 'none';
+}
+
+// Solo cuando Firebase confirma que NO hay sesión se muestra el botón.
 function mostrarPantallaLogin(mensajeError){
   rolActual = null;
   emailActual = '';
   datosCargadosPara = null;
   lockError.innerHTML = mensajeError || '';
-  lockLoading.textContent = '';
+  lockChecking.style.display = 'none';
+  googleBtn.style.display = 'flex';
   lockScreen.classList.remove('hidden');
   if(window.google && google.accounts && google.accounts.id){
     google.accounts.id.disableAutoSelect();
@@ -879,7 +890,7 @@ function mostrarPantallaLogin(mensajeError){
 // El resto (rol, ocultar login, cargar datos) lo hace onAuthStateChanged.
 function handleCredentialResponse(response){
   lockError.textContent = '';
-  lockLoading.textContent = 'Iniciando sesión...';
+  mostrarVerificando('Iniciando sesión...');
   if(!window.firebaseSignInConCredencialGoogle){
     mostrarPantallaLogin('Todavía no cargó Firebase. Probá de nuevo en unos segundos.');
     return;
@@ -910,6 +921,7 @@ function iniciarSesionFirebase(){
     return;
   }
   window.firebaseOnAuth((user) => {
+    sesionResuelta = true;
     if(!user){
       mostrarPantallaLogin(lockError.innerHTML);
       return;
@@ -924,7 +936,6 @@ function iniciarSesionFirebase(){
     emailActual = String(user.email || '');
     rolActual = rol;
     lockError.textContent = '';
-    lockLoading.textContent = '';
     lockScreen.classList.add('hidden');
     if(datosCargadosPara !== email){
       datosCargadosPara = email;
@@ -933,20 +944,32 @@ function iniciarSesionFirebase(){
   });
 }
 
-window.addEventListener('load', function(){
-  if(window.google && google.accounts && google.accounts.id){
-    google.accounts.id.initialize({
-      client_id: CONFIG.GOOGLE_CLIENT_ID,
-      callback: handleCredentialResponse,
-      auto_select: true
-    });
-    google.accounts.id.renderButton(document.getElementById('google-btn'), {
-      theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 260
-    });
+function iniciarBotonGoogle(){
+  if(!window.google || !google.accounts || !google.accounts.id){
+    // La librería de Google todavía no cargó; reintentamos en breve.
+    setTimeout(iniciarBotonGoogle, 300);
+    return;
   }
-  iniciarSesionFirebase();
-});
+  google.accounts.id.initialize({
+    client_id: CONFIG.GOOGLE_CLIENT_ID,
+    callback: handleCredentialResponse,
+    auto_select: true
+  });
+  google.accounts.id.renderButton(googleBtn, {
+    theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 260
+  });
+}
 
+iniciarBotonGoogle();
+iniciarSesionFirebase();
+
+// Si Firebase no responde (sin internet, bloqueado, etc.), no dejamos la
+// pantalla en "Verificando sesión..." para siempre: mostramos el botón.
+setTimeout(() => {
+  if(!sesionResuelta){
+    mostrarPantallaLogin('No se pudo verificar la sesión. Iniciá sesión de nuevo.');
+  }
+}, 8000);
 // Maneja una respuesta que indica que el token no es válido o que el
 // email no está en la lista permitida.
 function esRespuestaNoAutorizada(data){
