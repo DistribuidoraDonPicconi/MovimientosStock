@@ -508,12 +508,38 @@
   }
   .nuevo-body input[readonly]:focus{ border-color:var(--azul-borde); }
 
-  .nuevo-body select{
-    width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
-    font-size:17px; outline:none; color:#1a1f2b; background:#fff;
+  /* Desplegable propio (Concepto) */
+  .dd{ width:100%; }
+  .dd.hidden{ display:none; }
+  .dd-trigger{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
+    background:#fff; font-size:17px; color:#1a1f2b; cursor:pointer; text-align:left;
   }
-  .nuevo-body select:focus{ border-color:var(--azul); }
-  #nm-concepto-select + #nm-concepto{ margin-top:8px; }
+  .dd-trigger.abierto{ border-color:var(--azul); }
+  .dd-label{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dd-label.placeholder{ color:#9aa3b8; }
+  .dd-trigger svg{
+    width:18px; height:18px; color:var(--azul); flex-shrink:0; transition:transform .15s;
+  }
+  .dd-trigger.abierto svg{ transform:rotate(180deg); }
+  .dd-panel{
+    margin-top:6px; border:1px solid var(--azul-borde); border-radius:12px; background:#fff;
+    box-shadow:0 6px 16px rgba(22,48,92,0.12); max-height:230px; overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .dd-panel.hidden{ display:none; }
+  .dd-op{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:12px 14px; font-size:16.5px; font-weight:600; color:#3a4560;
+    border-bottom:1px solid var(--linea); cursor:pointer;
+  }
+  .dd-op:last-child{ border-bottom:none; }
+  .dd-op:active{ background:var(--azul-suave); }
+  .dd-op.selected{ background:var(--azul-suave); color:var(--azul); font-weight:800; }
+  .dd-op.selected::after{ content:'✓'; font-weight:800; }
+  .dd-op.otro{ color:var(--azul); font-weight:700; }
+  #nm-concepto-dd + #nm-concepto{ margin-top:8px; }
 
   /* Modal Config (listas de Concepto) */
   #config-modal{
@@ -678,7 +704,13 @@
       <input type="hidden" id="nm-seccion">
 
       <label>Concepto</label>
-      <select id="nm-concepto-select" style="display:none;"></select>
+      <div class="dd hidden" id="nm-concepto-dd">
+        <button type="button" class="dd-trigger" id="dd-trigger">
+          <span class="dd-label placeholder" id="dd-label">Elegí un concepto...</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="dd-panel hidden" id="dd-panel"></div>
+      </div>
       <input type="text" id="nm-concepto" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
 
       <label>Notas</label>
@@ -1877,7 +1909,6 @@ nmSeccionGrid.innerHTML = SECCIONES.map(s => `
 `).join('');
 
 /* ============== Conceptos condicionales por sección ============== */
-const nmConceptoSelect = document.getElementById('nm-concepto-select');
 const CONCEPTOS_LS_KEY = 'stockdp_conceptos_por_seccion';
 const CONCEPTO_OTRO = '__otro__';
 let conceptosPorSeccion = {};
@@ -1901,36 +1932,78 @@ async function cargarConceptosConfig(){
   }
 }
 
-// Muestra un desplegable si la sección elegida tiene lista; si no, el campo de texto libre.
+// Muestra el desplegable si la sección elegida tiene lista; si no, el campo de texto libre.
 // nmConcepto.value siempre es el valor final que se guarda.
+const ddEl = document.getElementById('nm-concepto-dd');
+const ddTrigger = document.getElementById('dd-trigger');
+const ddLabel = document.getElementById('dd-label');
+const ddPanel = document.getElementById('dd-panel');
+
+function ddCerrar(){
+  ddPanel.classList.add('hidden');
+  ddTrigger.classList.remove('abierto');
+}
+function ddSetLabel(texto){
+  ddLabel.textContent = texto || 'Elegí un concepto...';
+  ddLabel.classList.toggle('placeholder', !texto);
+}
+function ddRenderOpciones(opciones, actual){
+  ddPanel.innerHTML = opciones.map(c =>
+    `<div class="dd-op${c === actual ? ' selected' : ''}" data-v="${escHTML_(c)}">${escHTML_(c)}</div>`
+  ).join('') + `<div class="dd-op otro" data-otro="1">+ Otro...</div>`;
+}
+
 function refrescarConceptoUI(){
+  ddCerrar();
   const lista = conceptosPorSeccion[nmSeccion.value] || [];
   if(!lista.length){
-    nmConceptoSelect.style.display = 'none';
+    ddEl.classList.add('hidden');
     nmConcepto.style.display = '';
     return;
   }
   const actual = nmConcepto.value.trim();
   const opciones = lista.slice();
   if(actual && !opciones.includes(actual)) opciones.push(actual); // concepto viejo que ya no está en la lista
-  nmConceptoSelect.innerHTML =
-    `<option value="">Elegí un concepto...</option>` +
-    opciones.map(c => `<option value="${escHTML_(c)}">${escHTML_(c)}</option>`).join('') +
-    `<option value="${CONCEPTO_OTRO}">Otro...</option>`;
-  nmConceptoSelect.value = actual ? actual : '';
-  nmConceptoSelect.style.display = 'block';
+  ddRenderOpciones(opciones, actual);
+  ddSetLabel(actual);
+  ddEl.classList.remove('hidden');
   nmConcepto.style.display = 'none';
 }
 
-nmConceptoSelect.addEventListener('change', () => {
-  if(nmConceptoSelect.value === CONCEPTO_OTRO){
+ddTrigger.addEventListener('click', () => {
+  const abrir = ddPanel.classList.contains('hidden');
+  ddPanel.classList.toggle('hidden', !abrir);
+  ddTrigger.classList.toggle('abierto', abrir);
+  if(abrir){
+    const sel = ddPanel.querySelector('.selected');
+    if(sel) sel.scrollIntoView({ block:'nearest' });
+  }
+});
+
+ddPanel.addEventListener('click', (e) => {
+  const op = e.target.closest('.dd-op');
+  if(!op) return;
+  if(op.dataset.otro){
     nmConcepto.value = '';
+    ddSetLabel('Otro...');
+    ddLabel.classList.remove('placeholder');
+    ddPanel.querySelectorAll('.dd-op').forEach(o => o.classList.remove('selected'));
     nmConcepto.style.display = '';
+    ddCerrar();
     nmConcepto.focus();
   }else{
-    nmConcepto.value = nmConceptoSelect.value;
+    const v = op.dataset.v;
+    nmConcepto.value = v;
     nmConcepto.style.display = 'none';
+    ddPanel.querySelectorAll('.dd-op').forEach(o => o.classList.toggle('selected', o === op));
+    ddSetLabel(v);
+    ddCerrar();
   }
+});
+
+// tocar fuera del desplegable lo cierra
+document.addEventListener('click', (e) => {
+  if(!ddEl.contains(e.target)) ddCerrar();
 });
 
 function seleccionarSeccion(valor){
