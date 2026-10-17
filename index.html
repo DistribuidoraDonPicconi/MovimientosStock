@@ -525,20 +525,20 @@
   .dd-trigger.abierto svg{ transform:rotate(180deg); }
   .dd-panel{
     margin-top:6px; border:1px solid var(--azul-borde); border-radius:12px; background:#fff;
-    box-shadow:0 6px 16px rgba(22,48,92,0.12); max-height:230px; overflow-y:auto;
-    -webkit-overflow-scrolling:touch;
+    box-shadow:0 6px 16px rgba(22,48,92,0.12); padding:10px;
+    display:flex; flex-wrap:wrap; gap:8px;
   }
   .dd-panel.hidden{ display:none; }
   .dd-op{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding:12px 14px; font-size:16.5px; font-weight:600; color:#3a4560;
-    border-bottom:1px solid var(--linea); cursor:pointer;
+    padding:11px 14px; border-radius:11px; border:1.5px solid var(--azul-borde);
+    background:#fff; color:#3a4560; font-size:15.5px; font-weight:700;
+    cursor:pointer; text-align:center;
   }
-  .dd-op:last-child{ border-bottom:none; }
-  .dd-op:active{ background:var(--azul-suave); }
-  .dd-op.selected{ background:var(--azul-suave); color:var(--azul); font-weight:800; }
-  .dd-op.selected::after{ content:'✓'; font-weight:800; }
-  .dd-op.otro{ color:var(--azul); font-weight:700; }
+  .dd-op:active{ opacity:0.85; }
+  .dd-op.selected{
+    background:var(--azul); border-color:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
   #nm-concepto-dd + #nm-concepto{ margin-top:8px; }
 
   /* Modal Config (listas de Concepto) */
