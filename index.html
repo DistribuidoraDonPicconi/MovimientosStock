@@ -272,6 +272,13 @@
 
   .state-msg{ padding:40px 20px; text-align:center; color:var(--texto-tenue); font-size:14px; }
   .state-msg.error{ color:var(--rojo); }
+  .sk{
+    display:block; height:14px; border-radius:7px; margin:0 auto;
+    background:linear-gradient(90deg,#e9eef7 25%,#f6f8fc 45%,#e9eef7 65%);
+    background-size:300% 100%; animation:shimmer 1.3s ease-in-out infinite;
+  }
+  @keyframes shimmer{ from{ background-position:100% 0; } to{ background-position:0 0; } }
+  .loading-msg{ padding:14px 20px 0; text-align:center; color:var(--texto-tenue); font-size:13.5px; }
 
   /* Tabla Stock Actual */
   .stock-table-wrap{
@@ -869,13 +876,29 @@
   </div>
 
 
-  <div class="search-wrap" id="search-wrap">
+  <div class="search-wrap" id="search-wrap" style="display:none;">
     <input type="text" id="search" placeholder="Buscar producto...">
     <div class="chips-rapidos" id="chips-rapidos"></div>
   </div>
 
   <main id="main">
-    <div class="state-msg" id="loading">Cargando datos...</div>
+    <div id="loading">
+      <div class="stock-table-wrap">
+        <table class="stock"><tbody>
+        <tr><td class="prod"><span class="sk" style="width:62%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:48%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:70%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:55%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:66%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:44%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:72%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:58%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:50%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        <tr><td class="prod"><span class="sk" style="width:64%"></span></td><td class="stock"><span class="sk" style="width:60%"></span></td><td class="fecha"><span class="sk" style="width:70%"></span></td></tr>
+        </tbody></table>
+      </div>
+      <div class="loading-msg">Cargando datos...</div>
+    </div>
   </main>
 
 </div>
