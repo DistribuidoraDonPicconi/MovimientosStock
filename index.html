@@ -22,7 +22,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithCredential, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
   import {
-    getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy
+    getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, query, orderBy
   } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -74,6 +74,15 @@
 
   window.firestoreEliminarMovimiento = async (id) => {
     await deleteDoc(doc(db, "movimientos", id));
+  };
+
+  // Listas de conceptos por sección (documento único config/conceptos).
+  window.firestoreLeerConceptos = async () => {
+    const snap = await getDoc(doc(db, "config", "conceptos"));
+    return snap.exists() ? (snap.data().listas || {}) : null;
+  };
+  window.firestoreGuardarConceptos = async (listas) => {
+    await setDoc(doc(db, "config", "conceptos"), { listas });
   };
 </script>
 
@@ -141,6 +150,7 @@
     border-radius:12px; box-shadow:0 1px 2px rgba(22,48,92,0.06);
   }
   .icon-btn.logout{ color:var(--rojo); }
+  .header-btns{ display:flex; gap:10px; flex-shrink:0; }
   .icon-btn:active{ background:var(--azul-suave); }
   .icon-btn svg{ width:19px; height:19px; }
   .icon-btn.spinning svg{ animation: spin 0.8s linear infinite; }
@@ -498,6 +508,40 @@
   }
   .nuevo-body input[readonly]:focus{ border-color:var(--azul-borde); }
 
+  .nuevo-body select{
+    width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
+    font-size:17px; outline:none; color:#1a1f2b; background:#fff;
+  }
+  .nuevo-body select:focus{ border-color:var(--azul); }
+  #nm-concepto-select + #nm-concepto{ margin-top:8px; }
+
+  /* Modal Config (listas de Concepto) */
+  #config-modal{
+    position:fixed; inset:0; z-index:160;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #config-modal.hidden{ display:none; }
+  .cfg-ayuda{ font-size:14px; color:var(--texto-tenue); margin:0 0 4px; line-height:1.4; }
+  .cfg-lista{ display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
+  .cfg-vacia{ font-size:14px; color:var(--texto-tenue); padding:6px 2px; }
+  .cfg-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px; border:1px solid var(--azul-borde); border-radius:10px;
+    background:var(--azul-suave); font-size:16px; color:#1a1f2b;
+  }
+  .cfg-item button{
+    background:#fff; border:1px solid var(--azul-borde); color:var(--rojo);
+    width:30px; height:30px; border-radius:50%; font-size:18px; line-height:1;
+    cursor:pointer; flex-shrink:0;
+  }
+  .cfg-agregar{ display:flex; gap:8px; }
+  .cfg-agregar input{ flex:1; min-width:0; }
+  .cfg-agregar button{
+    padding:0 16px; border-radius:10px; border:none; background:var(--azul); color:#fff;
+    font-size:15px; font-weight:700; cursor:pointer;
+  }
+
   /* Botones de Sección */
   .nm-seccion-grid{
     display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
@@ -634,6 +678,7 @@
       <input type="hidden" id="nm-seccion">
 
       <label>Concepto</label>
+      <select id="nm-concepto-select" style="display:none;"></select>
       <input type="text" id="nm-concepto" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
 
       <label>Notas</label>
@@ -653,6 +698,31 @@
     <div class="nuevo-footer">
       <button class="btn-cancelar" id="nuevo-cancelar-btn">Cancelar</button>
       <button class="btn-guardar" id="nuevo-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="config-modal" class="hidden">
+  <div class="nuevo-box">
+    <div class="nuevo-header">
+      <h3>Config: conceptos</h3>
+      <button class="nuevo-close" id="cfg-cerrar" aria-label="Cerrar">×</button>
+    </div>
+    <div class="nuevo-body">
+      <p class="cfg-ayuda">Armá la lista de conceptos de cada sección. Si una sección no tiene lista, el campo Concepto queda de texto libre.</p>
+      <label>Sección</label>
+      <div class="nm-seccion-grid" id="cfg-seccion-grid"></div>
+      <label id="cfg-titulo-lista">Conceptos</label>
+      <div class="cfg-lista" id="cfg-lista"></div>
+      <div class="cfg-agregar">
+        <input type="text" id="cfg-nuevo" placeholder="Nuevo concepto">
+        <button type="button" id="cfg-agregar-btn">Agregar</button>
+      </div>
+    </div>
+    <div class="nuevo-error" id="cfg-error"></div>
+    <div class="nuevo-footer">
+      <button class="btn-cancelar" id="cfg-cancelar-btn">Cancelar</button>
+      <button class="btn-guardar" id="cfg-guardar">Guardar</button>
     </div>
   </div>
 </div>
@@ -685,7 +755,7 @@
         <h1 id="header-title">Stock</h1>
         <div class="sub">Distribuidora Don Picconi</div>
       </div>
-      <div style="display:flex; gap:22px;">
+      <div class="header-btns">
         <button class="icon-btn hidden" id="btn-compartir" aria-label="Compartir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </button>
@@ -694,6 +764,9 @@
         </button>
         <button class="icon-btn" id="btn-refresh" aria-label="Actualizar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+        <button class="icon-btn hidden" id="btn-config" aria-label="Config">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
         <button class="icon-btn logout" id="btn-logout" aria-label="Cerrar sesión">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -938,9 +1011,11 @@ function iniciarSesionFirebase(){
     rolActual = rol;
     lockError.textContent = '';
     lockScreen.classList.add('hidden');
+    document.getElementById('btn-config').classList.toggle('hidden', !esAdmin());
     if(datosCargadosPara !== email){
       datosCargadosPara = email;
       cargarDatos();
+      cargarConceptosConfig();
     }
   });
 }
@@ -1801,6 +1876,63 @@ nmSeccionGrid.innerHTML = SECCIONES.map(s => `
   <button type="button" class="nm-seccion-btn" data-seccion="${s}">${s}</button>
 `).join('');
 
+/* ============== Conceptos condicionales por sección ============== */
+const nmConceptoSelect = document.getElementById('nm-concepto-select');
+const CONCEPTOS_LS_KEY = 'stockdp_conceptos_por_seccion';
+const CONCEPTO_OTRO = '__otro__';
+let conceptosPorSeccion = {};
+try{
+  conceptosPorSeccion = JSON.parse(localStorage.getItem(CONCEPTOS_LS_KEY) || '{}') || {};
+}catch(e){ conceptosPorSeccion = {}; }
+
+function escHTML_(t){
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function cargarConceptosConfig(){
+  try{
+    const listas = await window.firestoreLeerConceptos();
+    if(listas){
+      conceptosPorSeccion = listas;
+      try{ localStorage.setItem(CONCEPTOS_LS_KEY, JSON.stringify(listas)); }catch(e){}
+    }
+  }catch(err){
+    console.warn('No se pudieron leer las listas de conceptos (se usa la copia local):', err);
+  }
+}
+
+// Muestra un desplegable si la sección elegida tiene lista; si no, el campo de texto libre.
+// nmConcepto.value siempre es el valor final que se guarda.
+function refrescarConceptoUI(){
+  const lista = conceptosPorSeccion[nmSeccion.value] || [];
+  if(!lista.length){
+    nmConceptoSelect.style.display = 'none';
+    nmConcepto.style.display = '';
+    return;
+  }
+  const actual = nmConcepto.value.trim();
+  const opciones = lista.slice();
+  if(actual && !opciones.includes(actual)) opciones.push(actual); // concepto viejo que ya no está en la lista
+  nmConceptoSelect.innerHTML =
+    `<option value="">Elegí un concepto...</option>` +
+    opciones.map(c => `<option value="${escHTML_(c)}">${escHTML_(c)}</option>`).join('') +
+    `<option value="${CONCEPTO_OTRO}">Otro...</option>`;
+  nmConceptoSelect.value = actual ? actual : '';
+  nmConceptoSelect.style.display = 'block';
+  nmConcepto.style.display = 'none';
+}
+
+nmConceptoSelect.addEventListener('change', () => {
+  if(nmConceptoSelect.value === CONCEPTO_OTRO){
+    nmConcepto.value = '';
+    nmConcepto.style.display = '';
+    nmConcepto.focus();
+  }else{
+    nmConcepto.value = nmConceptoSelect.value;
+    nmConcepto.style.display = 'none';
+  }
+});
+
 function seleccionarSeccion(valor){
   nmSeccion.value = valor;
   nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
@@ -1812,6 +1944,8 @@ nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     // tocar de nuevo el mismo botón lo deselecciona
     seleccionarSeccion(nmSeccion.value === btn.dataset.seccion ? '' : btn.dataset.seccion);
+    nmConcepto.value = '';   // el concepto depende de la sección: se resetea al cambiarla
+    refrescarConceptoUI();
   });
 });
 
@@ -1832,6 +1966,7 @@ function abrirNuevoModal(mov, modoEditar){
 
   seleccionarSeccion(precargar ? (mov['Sección'] || '') : '');
   nmConcepto.value = precargar ? (mov['Concepto'] || '') : '';
+  refrescarConceptoUI();
   nmNotas.value = precargar ? (mov['Notas'] || '') : '';
   nmUsuario.value = emailActual;
   nmFecha.value = precargar && mov[CONFIG.CAMPO_FECHA]
@@ -1881,6 +2016,98 @@ function construirMovimientoLocal(payload, idFinal, movOriginal){
   });
   return mov;
 }
+
+/* ============== Modal Config: listas de conceptos ============== */
+const configModal = document.getElementById('config-modal');
+const cfgSeccionGrid = document.getElementById('cfg-seccion-grid');
+const cfgListaEl = document.getElementById('cfg-lista');
+const cfgNuevoEl = document.getElementById('cfg-nuevo');
+const cfgErrorEl = document.getElementById('cfg-error');
+const cfgGuardarBtn = document.getElementById('cfg-guardar');
+let cfgBorrador = {};
+let cfgSeccionActual = SECCIONES[0];
+
+cfgSeccionGrid.innerHTML = SECCIONES.map(s =>
+  `<button type="button" class="nm-seccion-btn" data-cfg-seccion="${s}">${s}</button>`).join('');
+
+function cfgRender(){
+  cfgSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.cfgSeccion === cfgSeccionActual);
+  });
+  document.getElementById('cfg-titulo-lista').textContent = 'Conceptos de ' + cfgSeccionActual;
+  const lista = cfgBorrador[cfgSeccionActual] || [];
+  cfgListaEl.innerHTML = lista.length
+    ? lista.map((c, i) => `<div class="cfg-item"><span>${escHTML_(c)}</span><button type="button" data-i="${i}" aria-label="Quitar">×</button></div>`).join('')
+    : `<div class="cfg-vacia">Sin lista: el concepto se escribe a mano.</div>`;
+}
+
+function cfgAgregarPendiente(){
+  const v = cfgNuevoEl.value.trim();
+  if(!v) return;
+  const lista = cfgBorrador[cfgSeccionActual] = cfgBorrador[cfgSeccionActual] || [];
+  if(!lista.some(x => x.toLowerCase() === v.toLowerCase())) lista.push(v);
+  cfgNuevoEl.value = '';
+  cfgRender();
+}
+
+cfgSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    cfgAgregarPendiente();
+    cfgSeccionActual = b.dataset.cfgSeccion;
+    cfgRender();
+  });
+});
+cfgListaEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-i]');
+  if(!btn) return;
+  cfgBorrador[cfgSeccionActual].splice(Number(btn.dataset.i), 1);
+  cfgRender();
+});
+document.getElementById('cfg-agregar-btn').addEventListener('click', () => { cfgAgregarPendiente(); cfgNuevoEl.focus(); });
+cfgNuevoEl.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); cfgAgregarPendiente(); }
+});
+
+function cerrarConfigModal(){ configModal.classList.add('hidden'); }
+document.getElementById('btn-config').addEventListener('click', () => {
+  if(!esAdmin()) return;
+  cfgBorrador = JSON.parse(JSON.stringify(conceptosPorSeccion || {}));
+  cfgSeccionActual = SECCIONES[0];
+  cfgNuevoEl.value = '';
+  cfgErrorEl.textContent = '';
+  cfgGuardarBtn.disabled = false;
+  cfgGuardarBtn.textContent = 'Guardar';
+  cfgRender();
+  configModal.classList.remove('hidden');
+});
+document.getElementById('cfg-cerrar').addEventListener('click', cerrarConfigModal);
+document.getElementById('cfg-cancelar-btn').addEventListener('click', cerrarConfigModal);
+
+cfgGuardarBtn.addEventListener('click', async () => {
+  cfgAgregarPendiente();
+  cfgErrorEl.textContent = '';
+  const limpias = {};
+  SECCIONES.forEach(s => {
+    if(cfgBorrador[s] && cfgBorrador[s].length) limpias[s] = cfgBorrador[s];
+  });
+  cfgGuardarBtn.disabled = true;
+  cfgGuardarBtn.textContent = 'Guardando...';
+  conceptosPorSeccion = limpias;
+  try{ localStorage.setItem(CONCEPTOS_LS_KEY, JSON.stringify(limpias)); }catch(e){}
+  try{
+    await window.firestoreGuardarConceptos(limpias);
+    cerrarConfigModal();
+  }catch(err){
+    const sinPermiso = err && err.code === 'permission-denied';
+    cfgErrorEl.textContent = sinPermiso
+      ? 'Se guardó solo en este celular: Firestore no permite escribir en "config". Hay que agregar la regla (te la dejé en el mensaje).'
+      : 'Se guardó solo en este celular: ' + (err && err.message ? err.message : err);
+  }finally{
+    cfgGuardarBtn.disabled = false;
+    cfgGuardarBtn.textContent = 'Guardar';
+  }
+});
+/* ================================================================ */
 
 fabNuevo.addEventListener('click', () => abrirNuevoModal());
 document.getElementById('nuevo-cerrar').addEventListener('click', cerrarNuevoModal);
