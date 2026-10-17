@@ -216,6 +216,15 @@
   }
   .search-wrap input:focus{ border-color:var(--azul); }
   .search-wrap input::placeholder{ color:#a7b2c6; }
+  .chips-rapidos{ display:flex; flex-wrap:wrap; gap:7px; margin-top:9px; }
+  .chip-rapido{
+    padding:7px 12px; border-radius:11px; border:1.5px solid var(--azul-borde);
+    background:#f2f4f8; color:#3a4560; font-size:14px; font-weight:700; cursor:pointer;
+  }
+  .chip-rapido.active{
+    background:var(--azul); border-color:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
 
   /* Controles de la pestaña Resumen */
   .resumen-controls{ padding:14px 20px 6px; flex-shrink:0; }
@@ -848,6 +857,7 @@
 
   <div class="search-wrap" id="search-wrap">
     <input type="text" id="search" placeholder="Buscar producto...">
+    <div class="chips-rapidos" id="chips-rapidos"></div>
   </div>
 
   <main id="main">
@@ -893,6 +903,7 @@ let currentTab = 'stock';
 
 const mainEl = document.getElementById('main');
 const searchEl = document.getElementById('search');
+let seccionRapida = '';   // filtro rápido por Sección (botones bajo el buscador)
 const searchWrapEl = document.getElementById('search-wrap');
 const headerTitle = document.getElementById('header-title');
 const btnRefresh = document.getElementById('btn-refresh');
@@ -1464,6 +1475,7 @@ function renderMovimientos(filtro){
 
   const filas = ordenados
     .filter(mov => {
+      if(seccionRapida && mov['Sección'] !== seccionRapida) return false;
       if(!filtro) return true;
       // coincide si el filtro matchea un producto con movimiento en esa fila,
       // o si matchea el concepto/sección/notas
@@ -1740,6 +1752,21 @@ searchEl.addEventListener('input', () => {
 
 /* ============== Nuevo movimiento ============== */
 const SECCIONES = ['Compras', 'Granja', 'Repartos', 'Trozado', 'Ajustes', 'Otros'];
+
+// Botones fijos bajo el buscador: filtran Movimientos por Sección con un toque.
+// Tocar el botón activo lo desactiva. Se combinan con lo escrito en el buscador.
+const chipsRapidosEl = document.getElementById('chips-rapidos');
+chipsRapidosEl.innerHTML = SECCIONES.map(sec =>
+  `<button type="button" class="chip-rapido" data-sec="${sec}">${sec}</button>`).join('');
+chipsRapidosEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip-rapido');
+  if(!btn) return;
+  seccionRapida = (seccionRapida === btn.dataset.sec) ? '' : btn.dataset.sec;
+  chipsRapidosEl.querySelectorAll('.chip-rapido').forEach(b =>
+    b.classList.toggle('active', b.dataset.sec === seccionRapida));
+  scrollState.movimientos = { top: 0, left: 0 };
+  render();   // al renderizar, Movimientos queda abajo del todo (último cargado)
+});
 resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
   + `<option value="${VENTA_TOTAL_VALUE}">Venta total</option>`;
 const fabNuevo = document.getElementById('fab-nuevo');
