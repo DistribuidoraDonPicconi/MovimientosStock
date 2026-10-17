@@ -256,6 +256,11 @@
   }
   .resumen-fecha-campo input:focus, .resumen-seccion-campo select:focus{ border-color:var(--azul); }
 
+  /* Desplegables de Resumen (mismo estilo que el de Concepto del formulario) */
+  .rs-select-oculto{ display:none !important; }
+  .rs-trigger{ font-size:15px; padding:10px 12px; border-radius:11px; }
+  #rs-panel{ max-height:45vh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
   /* Content */
   main{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:8px 20px 24px; }
   /* En la pestaña Movimientos, main deja de scrollear: la tabla scrollea sola
@@ -840,18 +845,27 @@
     </div>
     <div class="resumen-filtros-fila">
       <div class="resumen-seccion-campo">
-        <label for="resumen-seccion">Sección</label>
-        <select id="resumen-seccion">
+        <label>Sección</label>
+        <select id="resumen-seccion" class="rs-select-oculto">
           <option value="">Todas</option>
         </select>
+        <button type="button" class="dd-trigger rs-trigger" id="rs-trigger-seccion" data-campo="seccion">
+          <span class="dd-label">Todas</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
       <div class="resumen-seccion-campo">
-        <label for="resumen-concepto">Concepto</label>
-        <select id="resumen-concepto">
+        <label>Concepto</label>
+        <select id="resumen-concepto" class="rs-select-oculto">
           <option value="">Todos</option>
         </select>
+        <button type="button" class="dd-trigger rs-trigger" id="rs-trigger-concepto" data-campo="concepto">
+          <span class="dd-label">Todos</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
     </div>
+    <div class="dd-panel hidden" id="rs-panel"></div>
   </div>
 
 
@@ -1338,6 +1352,7 @@ function actualizarOpcionesConcepto(){
   resumenConceptoEl.innerHTML = `<option value="">Todos</option>`
     + listaOrdenada.map(c => `<option value="${c}">${c}</option>`).join('');
   resumenConceptoEl.value = mantieneSeleccion ? seleccionPrevia : '';
+  rsSync();
 }
 
 function calcularResumen(){
@@ -1769,6 +1784,59 @@ chipsRapidosEl.addEventListener('click', (e) => {
 });
 resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
   + `<option value="${VENTA_TOTAL_VALUE}">Venta total</option>`;
+
+/* ============== Desplegables de Resumen (botones) ==============
+   Los <select> originales siguen existiendo (ocultos) y guardan el valor;
+   estos botones leen sus opciones y, al elegir, cambian el select y
+   disparan su evento 'change', así el resto de la lógica no cambia. */
+let rsAbierto = '';   // 'seccion' | 'concepto' | ''
+function rsSelectDe(campo){
+  return document.getElementById(campo === 'seccion' ? 'resumen-seccion' : 'resumen-concepto');
+}
+function rsRenderPanel(){
+  const panel = document.getElementById('rs-panel');
+  if(!panel) return;
+  document.querySelectorAll('.rs-trigger').forEach(t =>
+    t.classList.toggle('abierto', t.dataset.campo === rsAbierto));
+  if(!rsAbierto){ panel.classList.add('hidden'); return; }
+  const sel = rsSelectDe(rsAbierto);
+  panel.innerHTML = Array.from(sel.options).map(o =>
+    `<div class="dd-op${o.value === sel.value ? ' selected' : ''}" data-v="${escHTML_(o.value)}">${escHTML_(o.textContent)}</div>`
+  ).join('');
+  panel.classList.remove('hidden');
+}
+function rsSync(){
+  ['seccion', 'concepto'].forEach(campo => {
+    const sel = rsSelectDe(campo);
+    const trig = document.getElementById('rs-trigger-' + campo);
+    if(!sel || !trig) return;
+    const opt = sel.options[sel.selectedIndex];
+    trig.querySelector('.dd-label').textContent = opt ? opt.textContent : '';
+  });
+  rsRenderPanel();
+}
+document.querySelectorAll('.rs-trigger').forEach(t => {
+  t.addEventListener('click', () => {
+    rsAbierto = (rsAbierto === t.dataset.campo) ? '' : t.dataset.campo;
+    rsRenderPanel();
+  });
+});
+document.getElementById('rs-panel').addEventListener('click', (e) => {
+  const op = e.target.closest('.dd-op');
+  if(!op || !rsAbierto) return;
+  const sel = rsSelectDe(rsAbierto);
+  sel.value = op.dataset.v;
+  sel.dispatchEvent(new Event('change'));
+  rsAbierto = '';
+  rsSync();
+});
+document.addEventListener('click', (e) => {
+  if(rsAbierto && !e.target.closest('.rs-trigger, #rs-panel')){
+    rsAbierto = '';
+    rsRenderPanel();
+  }
+});
+rsSync();
 const fabNuevo = document.getElementById('fab-nuevo');
 const fabAcciones = document.getElementById('fab-acciones');
 const fabEditar = document.getElementById('fab-editar');
