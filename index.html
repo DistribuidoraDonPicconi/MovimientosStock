@@ -634,9 +634,9 @@
   .nuevo-prod-item input:focus{ border-color:var(--azul); }
   .nuevo-prod-item input::placeholder{ color:#b7c0d4; font-weight:500; }
   .nuevo-prod-item.oculto{ display:none; }
-  /* Si se oculta algún producto de la grilla principal, pasa a 3 columnas
-     para que "Cajones de Pollo" tenga el mismo ancho que los de abajo (Cuarto, Ala...) */
-  .nuevo-productos-grid.principales:has(.oculto){ grid-template-columns:1fr 1fr 1fr; }
+  /* Al filtrar por sección, todos los productos pasan a la grilla de 3 columnas
+     y la grilla principal (2 columnas) queda vacía y se oculta */
+  .nuevo-productos-grid.principales.sin-items{ display:none; }
   .nuevo-footer{
     display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--linea);
     flex-shrink:0; background:#fff;
@@ -2033,12 +2033,26 @@ const PRODUCTOS_POR_SECCION = {
 
 function aplicarProductosPorSeccion(){
   const permitidos = PRODUCTOS_POR_SECCION[nmSeccion.value];
-  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
-    const item = inp.closest('.nuevo-prod-item');
+  const filtrando = !!permitidos;
+
+  // Todos los items, siempre en el orden original de CONFIG.PRODUCTOS
+  const items = Array.from(document.querySelectorAll('#nm-productos-principales .nuevo-prod-item, #nm-productos-resto .nuevo-prod-item'));
+  items.sort((a, b) =>
+    CONFIG.PRODUCTOS.indexOf(a.querySelector('input').dataset.producto) -
+    CONFIG.PRODUCTOS.indexOf(b.querySelector('input').dataset.producto));
+
+  items.forEach((item, i) => {
+    const inp = item.querySelector('input');
     // Si el campo ya tiene un valor cargado, no se oculta (así no se pierde un dato al editar)
-    const ocultar = permitidos && !permitidos.includes(inp.dataset.producto) && inp.value.trim() === '';
-    item.classList.toggle('oculto', !!ocultar);
+    const ocultar = filtrando && !permitidos.includes(inp.dataset.producto) && inp.value.trim() === '';
+    item.classList.toggle('oculto', ocultar);
+    // Sin filtro: los 2 primeros van a la grilla principal (2 columnas), el resto a la de 3.
+    // Con filtro: todos van a la de 3, así los visibles se acomodan sin huecos.
+    const destino = (filtrando || i >= 2) ? nmProductosResto : nmProductosPrincipales;
+    destino.appendChild(item);
   });
+
+  nmProductosPrincipales.classList.toggle('sin-items', filtrando);
 }
 
 // generar los botones de Sección, una sola vez
