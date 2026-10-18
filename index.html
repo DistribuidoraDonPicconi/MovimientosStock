@@ -633,6 +633,9 @@
   }
   .nuevo-prod-item input:focus{ border-color:var(--azul); }
   .nuevo-prod-item input::placeholder{ color:#b7c0d4; font-weight:500; }
+  .nuevo-prod-item.oculto{ display:none; }
+  /* Si en la grilla de 2 columnas queda un solo producto visible, ocupa todo el ancho */
+  .nuevo-productos-grid.principales:has(.oculto) .nuevo-prod-item:not(.oculto){ grid-column:1 / -1; }
   .nuevo-footer{
     display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--linea);
     flex-shrink:0; background:#fff;
@@ -2021,6 +2024,22 @@ function limpiarCantidadParaEnvio(valorFormateado){
   return valorFormateado.replace(/\./g, '');
 }
 
+// Productos que se muestran en el formulario según la Sección.
+// Si una sección no está acá, se muestran todos.
+const PRODUCTOS_POR_SECCION = {
+  'Trozado': ['Cajones de Pollo', 'Cuarto', 'Ala', 'Pechuga', 'Menudo', 'Carcaza']
+};
+
+function aplicarProductosPorSeccion(){
+  const permitidos = PRODUCTOS_POR_SECCION[nmSeccion.value];
+  document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
+    const item = inp.closest('.nuevo-prod-item');
+    // Si el campo ya tiene un valor cargado, no se oculta (así no se pierde un dato al editar)
+    const ocultar = permitidos && !permitidos.includes(inp.dataset.producto) && inp.value.trim() === '';
+    item.classList.toggle('oculto', !!ocultar);
+  });
+}
+
 // generar los botones de Sección, una sola vez
 nmSeccionGrid.innerHTML = SECCIONES.map(s => `
   <button type="button" class="nm-seccion-btn" data-seccion="${s}">${s}</button>
@@ -2137,6 +2156,7 @@ nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
     seleccionarSeccion(nmSeccion.value === btn.dataset.seccion ? '' : btn.dataset.seccion);
     nmConcepto.value = '';   // el concepto depende de la sección: se resetea al cambiarla
     refrescarConceptoUI();
+    aplicarProductosPorSeccion();
   });
 });
 
@@ -2168,6 +2188,7 @@ function abrirNuevoModal(mov, modoEditar){
     inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
   });
   actualizarCajasTotalForm();
+  aplicarProductosPorSeccion();
 
   nuevoError.textContent = '';
   btnGuardar.disabled = false;
