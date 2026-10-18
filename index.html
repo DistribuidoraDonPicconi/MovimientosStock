@@ -145,12 +145,12 @@
     letter-spacing:0.2px;
   }
   .icon-btn{
-    background:#fff; border:1px solid var(--azul-borde); padding:11px; cursor:pointer;
+    background:#fff; border:1px solid var(--azul-borde); padding:10px; cursor:pointer;
     color:var(--azul); display:flex; align-items:center; justify-content:center;
     border-radius:12px; box-shadow:0 1px 2px rgba(22,48,92,0.06);
   }
   .icon-btn.logout{ color:var(--rojo); }
-  .header-btns{ display:flex; gap:10px; flex-shrink:0; }
+  .header-btns{ display:flex; gap:7px; flex-shrink:0; }
   .icon-btn:active{ background:var(--azul-suave); }
   .icon-btn svg{ width:19px; height:19px; }
   .icon-btn.spinning svg{ animation: spin 0.8s linear infinite; }
@@ -736,10 +736,10 @@
         </button>
         <div class="dd-panel hidden" id="dd-panel"></div>
       </div>
-      <input type="text" id="nm-concepto" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
+      <input type="text" id="nm-concepto" maxlength="30" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
 
       <label>Notas</label>
-      <input type="text" id="nm-notas" placeholder="Opcional">
+      <input type="text" id="nm-notas" maxlength="30" placeholder="Opcional">
 
       <div class="nuevo-productos-title">Productos</div>
       <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
