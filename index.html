@@ -634,8 +634,9 @@
   .nuevo-prod-item input:focus{ border-color:var(--azul); }
   .nuevo-prod-item input::placeholder{ color:#b7c0d4; font-weight:500; }
   .nuevo-prod-item.oculto{ display:none; }
-  /* Si en la grilla de 2 columnas queda un solo producto visible, ocupa todo el ancho */
-  .nuevo-productos-grid.principales:has(.oculto) .nuevo-prod-item:not(.oculto){ grid-column:1 / -1; }
+  /* Si se oculta algún producto de la grilla principal, pasa a 3 columnas
+     para que "Cajones de Pollo" tenga el mismo ancho que los de abajo (Cuarto, Ala...) */
+  .nuevo-productos-grid.principales:has(.oculto){ grid-template-columns:1fr 1fr 1fr; }
   .nuevo-footer{
     display:flex; gap:10px; padding:14px 20px; border-top:1px solid var(--linea);
     flex-shrink:0; background:#fff;
