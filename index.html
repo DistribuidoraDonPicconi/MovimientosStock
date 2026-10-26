@@ -695,7 +695,9 @@
   }
   .pp-res-item b{ color:var(--azul); font-weight:800; }
   .pp-res-item b.neg, .pp-btn.neg:not(.selected) .pp-q{ color:var(--rojo); }
-  .pp-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .pp-grid{ display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+  .pp-btn{ grid-column:span 2; }
+  .pp-btn.grande{ grid-column:span 3; }
   .pp-btn{
     border:1.5px solid var(--azul-borde); background:#f2f4f8; color:#3a4560;
     border-radius:11px; padding:8px 4px; min-height:56px; font-size:14px; font-weight:700;
@@ -2232,9 +2234,13 @@ function renderResumenProd(){
 }
 
 function ppRenderGrid(){
-  ppGrid.innerHTML = ppVisibles().map(p => {
+  const vis = ppVisibles();
+  // Cajones y Unidades arriba (2 grandes); el resto de a 3. Si no están los dos, todo de a 3.
+  const grandes = CONFIG.PRODUCTOS.slice(0, 2);
+  const hayGrandes = grandes.every(g => vis.includes(g));
+  ppGrid.innerHTML = vis.map(p => {
     const tiene = ppTiene(p);
-    return `<button type="button" class="pp-btn${tiene ? ' con-valor' : ''}${ppValor(p) < 0 ? ' neg' : ''}${p === ppSel ? ' selected' : ''}" data-p="${escHTML_(p)}">` +
+    return `<button type="button" class="pp-btn${hayGrandes && grandes.includes(p) ? ' grande' : ''}${tiene ? ' con-valor' : ''}${ppValor(p) < 0 ? ' neg' : ''}${p === ppSel ? ' selected' : ''}" data-p="${escHTML_(p)}">` +
       `<span>${escHTML_(p)}</span>${tiene ? `<span class="pp-q">${escHTML_(ppInputs[p].value)}</span>` : ''}</button>`;
   }).join('');
   ppSyncCtrl(false);
@@ -2456,7 +2462,7 @@ function abrirNuevoModal(mov, modoEditar){
   nmEditId.value = (precargar && modoEditar) ? (mov['ID'] || '') : '';
   nuevoTitulo.textContent = modoEditar ? 'Editar movimiento' : (precargar ? 'Copiar movimiento' : 'Nuevo movimiento');
 
-  seleccionarSeccion(precargar ? (mov['Sección'] || '') : '');
+  seleccionarSeccion(precargar ? (mov['Sección'] || '') : 'Compras');
   nmConcepto.value = precargar ? (mov['Concepto'] || '') : '';
   refrescarConceptoUI();
   nmNotas.value = precargar ? (mov['Notas'] || '') : '';
