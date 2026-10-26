@@ -312,6 +312,17 @@
   table.stock td.total{ font-size:16px; font-weight:800; color:#1a1f2b; width:78px; white-space:nowrap; }
   table.stock th.entradas, table.stock th.salidas, table.stock th.total{ width:78px; }
 
+  /* Botón atajo "Nuevo movimiento" al final de Stock Actual */
+  .btn-nuevo-atajo{
+    width:100%; margin-top:16px; padding:15px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--azul); color:#fff; border:none; border-radius:14px;
+    font-size:16px; font-weight:800; cursor:pointer;
+    box-shadow:0 4px 12px rgba(42,92,201,0.35);
+  }
+  .btn-nuevo-atajo svg{ width:20px; height:20px; }
+  .btn-nuevo-atajo:active{ opacity:0.88; transform:scale(0.98); }
+
   /* Tabla de Resumen: misma estructura que Stock Actual pero con fuente más
      chica, para que entren los números de Entradas/Salidas/Total sin cortarse */
   table.resumen-table td{ padding:7px 6px; }
@@ -1230,12 +1241,17 @@ function renderStock(filtro){
       </tr>`;
     }).join('');
 
-  if(!filas){
-    mainEl.innerHTML = `<div class="state-msg">Sin productos que coincidan.</div>`;
-    return;
-  }
+  // Botón atajo "Nuevo movimiento" al final de Stock Actual (solo roles que pueden agregar)
+  const botonAtajo = puedeAgregar() ? `
+    <button type="button" class="btn-nuevo-atajo" id="btn-nuevo-atajo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nuevo movimiento
+    </button>` : '';
 
-  mainEl.innerHTML = `
+  if(!filas){
+    mainEl.innerHTML = `<div class="state-msg">Sin productos que coincidan.</div>${botonAtajo}`;
+  }else{
+    mainEl.innerHTML = `
     <div class="stock-table-wrap">
       <table class="stock">
         <thead>
@@ -1247,7 +1263,11 @@ function renderStock(filtro){
         </thead>
         <tbody>${filas}</tbody>
       </table>
-    </div>`;
+    </div>${botonAtajo}`;
+  }
+
+  const btnAtajo = document.getElementById('btn-nuevo-atajo');
+  if(btnAtajo) btnAtajo.addEventListener('click', () => abrirNuevoModal());
 }
 
 /* ============== Compartir Stock Actual como texto (WhatsApp) ============== */
