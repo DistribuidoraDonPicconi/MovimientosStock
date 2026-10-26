@@ -674,6 +674,68 @@
   .nuevo-error{
     color:var(--rojo); font-size:13px; text-align:center; padding:0 20px 4px;
   }
+
+  /* Selector de productos (ventana con botones) */
+  #prod-modal{
+    position:fixed; inset:0; z-index:170;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #prod-modal.hidden{ display:none; }
+  .pp-abrir{
+    width:100%; padding:13px; border-radius:12px; border:1.5px dashed var(--azul);
+    background:var(--azul-suave); color:var(--azul-osc); font-size:16px; font-weight:800; cursor:pointer;
+  }
+  .pp-abrir:active{ opacity:0.85; }
+  .pp-resumen{ display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+  .pp-res-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px; border-radius:11px; border:1px solid #ece4c8; background:#fdfbf3;
+    font-size:16px; color:#1a1f2b; cursor:pointer;
+  }
+  .pp-res-item b{ color:var(--azul); font-weight:800; }
+  .pp-res-item b.neg, .pp-btn.neg:not(.selected) .pp-q{ color:var(--rojo); }
+  .pp-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .pp-btn{
+    border:1.5px solid var(--azul-borde); background:#f2f4f8; color:#3a4560;
+    border-radius:11px; padding:8px 4px; min-height:56px; font-size:14px; font-weight:700;
+    line-height:1.2; cursor:pointer; text-align:center;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  }
+  .pp-btn .pp-q{ font-size:14px; font-weight:800; color:var(--azul); }
+  .pp-btn.con-valor{ background:#fdfbf3; border-color:#ece4c8; }
+  .pp-btn.selected{
+    background:var(--azul); border-color:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
+  .pp-btn.selected .pp-q{ color:#fff; }
+  .pp-btn:active{ opacity:0.85; }
+  .pp-ctrl{ margin-top:14px; padding-top:12px; border-top:1px solid var(--linea); }
+  .pp-nombre{ font-size:16px; font-weight:800; color:var(--azul-osc); margin-bottom:8px; }
+  .pp-fila{ display:flex; gap:8px; align-items:stretch; margin-bottom:8px; }
+  .pp-fila input[type="text"]{ flex:1; min-width:0; text-align:center; font-weight:800; color:var(--azul); }
+  .pp-modo, .pp-borrar{
+    border-radius:11px; border:1.5px solid var(--azul-borde); background:#fff; color:#3a4560;
+    font-weight:800; cursor:pointer;
+  }
+  .pp-modo{ width:48px; font-size:22px; }
+  .pp-modo.on{ background:var(--azul); border-color:var(--azul); color:#fff; }
+  .pp-modo.menos.on{ background:var(--rojo); border-color:var(--rojo); }
+  .pp-borrar{ padding:0 12px; font-size:13px; color:var(--rojo); }
+  .pp-modo:disabled, .pp-borrar:disabled, .pp-chips button:disabled{ opacity:0.4; cursor:default; }
+  .pp-chips{ display:flex; gap:6px; margin-bottom:10px; }
+  .pp-chips button{
+    flex:1; padding:12px 0; border-radius:11px; border:1.5px solid var(--azul-borde);
+    background:#fff; color:var(--azul); font-size:16px; font-weight:800; cursor:pointer;
+  }
+  .pp-chips button:active{ transform:scale(0.95); }
+  .pp-chips.neg button{ border-color:var(--rojo); color:var(--rojo); background:#fdecec; }
+  .pp-total{
+    display:flex; justify-content:space-between; align-items:baseline;
+    background:var(--azul-suave); border-radius:11px; padding:9px 12px;
+    font-size:14px; font-weight:800; color:var(--azul-osc);
+  }
+  .pp-total span:last-child{ font-size:18px; color:var(--azul); }
 </style>
 </head>
 <body>
@@ -763,8 +825,13 @@
       <input type="text" id="nm-notas" maxlength="30" placeholder="Opcional">
 
       <div class="nuevo-productos-title">Productos</div>
-      <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
-      <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
+      <button type="button" class="pp-abrir" id="pp-abrir">＋ Agregar productos</button>
+      <div class="pp-resumen" id="pp-resumen"></div>
+      <!-- Los casilleros siguen existiendo (ocultos): el selector de productos los completa -->
+      <div id="nm-productos-ocultos" style="display:none">
+        <div class="nuevo-productos-grid principales" id="nm-productos-principales"></div>
+        <div class="nuevo-productos-grid resto" id="nm-productos-resto"></div>
+      </div>
 
       <label>Cajas total</label>
       <input type="text" id="nm-cajas-total" readonly>
@@ -776,6 +843,32 @@
     <div class="nuevo-footer">
       <button class="btn-cancelar" id="nuevo-cancelar-btn">Cancelar</button>
       <button class="btn-guardar" id="nuevo-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="prod-modal" class="hidden">
+  <div class="nuevo-box">
+    <div class="nuevo-header">
+      <h3>Productos</h3>
+      <button class="nuevo-close" id="pp-cerrar" aria-label="Cerrar">×</button>
+    </div>
+    <div class="nuevo-body">
+      <div class="pp-grid" id="pp-grid"></div>
+      <div class="pp-ctrl">
+        <div class="pp-nombre" id="pp-nombre">Elegí un producto</div>
+        <div class="pp-fila">
+          <button type="button" class="pp-modo menos" id="pp-menos" aria-label="Restar">−</button>
+          <input type="text" inputmode="decimal" id="pp-cant" placeholder="0" autocomplete="off">
+          <button type="button" class="pp-modo mas on" id="pp-mas" aria-label="Sumar">+</button>
+          <button type="button" class="pp-borrar" id="pp-borrar">Borrar</button>
+        </div>
+        <div class="pp-chips" id="pp-chips"></div>
+        <div class="pp-total"><span>Cajas total</span><span id="pp-cajas">0</span></div>
+      </div>
+    </div>
+    <div class="nuevo-footer">
+      <button class="btn-guardar" id="pp-listo">Listo</button>
     </div>
   </div>
 </div>
@@ -2083,8 +2176,150 @@ function aplicarProductosPorSeccion(){
     destino.appendChild(item);
   });
 
+
   nmProductosPrincipales.classList.toggle('sin-items', filtrando);
+  renderResumenProd();
 }
+
+/* ============== Selector de productos: botones + cantidades rápidas ============== */
+// Cantidades rápidas (se pueden cambiar a gusto)
+const PP_CHIPS = [1, 5, 10, 15, 20];
+const ppModal = document.getElementById('prod-modal');
+const ppGrid = document.getElementById('pp-grid');
+const ppNombre = document.getElementById('pp-nombre');
+const ppCant = document.getElementById('pp-cant');
+const ppChips = document.getElementById('pp-chips');
+const ppMas = document.getElementById('pp-mas');
+const ppMenos = document.getElementById('pp-menos');
+const ppBorrar = document.getElementById('pp-borrar');
+const ppCajas = document.getElementById('pp-cajas');
+const ppAbrir = document.getElementById('pp-abrir');
+const ppResumen = document.getElementById('pp-resumen');
+let ppSel = null;
+let ppModo = 1;
+
+// producto -> casillero oculto del formulario (es de donde lee todo el resto de la app)
+const ppInputs = {};
+document.querySelectorAll('.nm-prod-input').forEach(inp => { ppInputs[inp.dataset.producto] = inp; });
+
+function ppValor(p){
+  const v = ppInputs[p].value.trim();
+  if(v === '') return 0;
+  const n = parseFloat(limpiarCantidadParaEnvio(v).replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+function ppTiene(p){ return ppInputs[p].value.trim() !== ''; }
+
+function ppSetValor(p, n){
+  n = Math.round(Math.max(-9999.99, Math.min(9999.99, n)) * 100) / 100;
+  ppInputs[p].value = n === 0 ? '' : formatearCantidad(String(n).replace('.', ','));
+  actualizarCajasTotalForm();
+  renderResumenProd();
+}
+
+// Productos que se pueden elegir según la Sección (los mismos que antes mostraba el formulario)
+function ppVisibles(){
+  return CONFIG.PRODUCTOS.filter(p => !ppInputs[p].closest('.nuevo-prod-item').classList.contains('oculto'));
+}
+
+function renderResumenProd(){
+  const cargados = CONFIG.PRODUCTOS.filter(ppTiene);
+  ppResumen.innerHTML = cargados.map(p =>
+    `<div class="pp-res-item" data-p="${escHTML_(p)}"><span>${escHTML_(p)}</span><b class="${ppValor(p) < 0 ? 'neg' : ''}">${escHTML_(ppInputs[p].value)}</b></div>`
+  ).join('');
+  ppAbrir.textContent = cargados.length ? '✎ Editar productos' : '＋ Agregar productos';
+  if(!ppModal.classList.contains('hidden')) ppRenderGrid();
+}
+
+function ppRenderGrid(){
+  ppGrid.innerHTML = ppVisibles().map(p => {
+    const tiene = ppTiene(p);
+    return `<button type="button" class="pp-btn${tiene ? ' con-valor' : ''}${ppValor(p) < 0 ? ' neg' : ''}${p === ppSel ? ' selected' : ''}" data-p="${escHTML_(p)}">` +
+      `<span>${escHTML_(p)}</span>${tiene ? `<span class="pp-q">${escHTML_(ppInputs[p].value)}</span>` : ''}</button>`;
+  }).join('');
+  ppSyncCtrl(false);
+}
+
+function ppSyncCtrl(forzar){
+  const hay = !!ppSel;
+  ppCant.disabled = !hay;
+  ppBorrar.disabled = !hay;
+  ppChips.querySelectorAll('button').forEach(b => { b.disabled = !hay; });
+  ppNombre.textContent = hay ? ppSel : 'Elegí un producto';
+  if(forzar || document.activeElement !== ppCant) ppCant.value = hay ? ppInputs[ppSel].value : '';
+  ppCajas.textContent = nmCajasTotal.value || '0';
+}
+
+function ppSetModo(m){
+  ppModo = m;
+  ppMas.classList.toggle('on', m === 1);
+  ppMenos.classList.toggle('on', m === -1);
+  ppChips.classList.toggle('neg', m === -1);
+  ppChips.querySelectorAll('button').forEach(b => { b.textContent = (m === 1 ? '+' : '−') + b.dataset.q; });
+}
+
+ppChips.innerHTML = PP_CHIPS.map(q => `<button type="button" data-q="${q}"></button>`).join('');
+ppSetModo(1);
+
+function ppAbrirPicker(producto){
+  ppSel = (producto && ppInputs[producto]) ? producto : null;
+  ppSetModo(1);
+  ppModal.classList.remove('hidden');
+  ppRenderGrid();
+  ppSyncCtrl(true);
+  ppModal.querySelector('.nuevo-body').scrollTop = 0;
+}
+function ppCerrarPicker(){
+  ppModal.classList.add('hidden');
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+
+ppAbrir.addEventListener('click', () => ppAbrirPicker(null));
+ppResumen.addEventListener('click', (e) => {
+  const it = e.target.closest('.pp-res-item');
+  if(it) ppAbrirPicker(it.dataset.p);
+});
+document.getElementById('pp-cerrar').addEventListener('click', ppCerrarPicker);
+document.getElementById('pp-listo').addEventListener('click', ppCerrarPicker);
+ppModal.addEventListener('click', (e) => { if(e.target === ppModal) ppCerrarPicker(); });
+
+// Tocar un producto lo elige (no suma nada)
+ppGrid.addEventListener('click', (e) => {
+  const b = e.target.closest('.pp-btn');
+  if(!b || !ppInputs[b.dataset.p]) return;
+  if(ppSel !== b.dataset.p){ ppSel = b.dataset.p; ppSetModo(1); }
+  ppRenderGrid();
+  ppSyncCtrl(true);
+});
+
+ppMas.addEventListener('click', () => ppSetModo(1));
+ppMenos.addEventListener('click', () => ppSetModo(-1));
+
+// Los botones de cantidad suman o restan sobre el producto elegido (se permiten negativos)
+ppChips.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-q]');
+  if(!b || !ppSel) return;
+  ppSetValor(ppSel, ppValor(ppSel) + ppModo * Number(b.dataset.q));
+  ppSyncCtrl(true);
+  try{ if(navigator.vibrate) navigator.vibrate(12); }catch(_){}
+});
+
+ppBorrar.addEventListener('click', () => {
+  if(!ppSel) return;
+  ppSetValor(ppSel, 0);
+  ppSyncCtrl(true);
+});
+
+// Escribir a mano la cantidad exacta del producto elegido
+ppCant.addEventListener('focus', () => { try{ ppCant.select(); }catch(_){} });
+ppCant.addEventListener('input', () => {
+  if(!ppSel) return;
+  const v = formatearCantidad(ppCant.value);
+  ppCant.value = v;
+  ppInputs[ppSel].value = v;
+  actualizarCajasTotalForm();
+  renderResumenProd();
+});
 
 // generar los botones de Sección, una sola vez
 nmSeccionGrid.innerHTML = SECCIONES.map(s => `
