@@ -821,10 +821,10 @@
         </button>
         <div class="dd-panel hidden" id="dd-panel"></div>
       </div>
-      <input type="text" id="nm-concepto" maxlength="30" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
+      <input type="text" id="nm-concepto" enterkeyhint="done" maxlength="30" placeholder="Ej: Indavisa, Venta, 1A, 2A, 3A">
 
       <label>Notas</label>
-      <input type="text" id="nm-notas" maxlength="30" placeholder="Opcional">
+      <input type="text" id="nm-notas" enterkeyhint="done" maxlength="30" placeholder="Opcional">
 
       <div class="nuevo-productos-title">Productos</div>
       <button type="button" class="pp-abrir" id="pp-abrir">＋ Agregar productos</button>
@@ -861,7 +861,7 @@
         <div class="pp-nombre" id="pp-nombre">Elegí un producto</div>
         <div class="pp-fila">
           <button type="button" class="pp-modo menos" id="pp-menos" aria-label="Restar">−</button>
-          <input type="text" inputmode="decimal" id="pp-cant" placeholder="0" autocomplete="off">
+          <input type="text" inputmode="decimal" enterkeyhint="done" id="pp-cant" placeholder="0" autocomplete="off">
           <button type="button" class="pp-modo mas on" id="pp-mas" aria-label="Sumar">+</button>
           <button type="button" class="pp-borrar" id="pp-borrar">Borrar</button>
         </div>
@@ -889,7 +889,7 @@
       <button type="button" class="cfg-ordenar" id="cfg-ordenar-btn">Ordenar A–Z</button>
       <div class="cfg-lista" id="cfg-lista"></div>
       <div class="cfg-agregar">
-        <input type="text" id="cfg-nuevo" placeholder="Nuevo concepto">
+        <input type="text" id="cfg-nuevo" enterkeyhint="done" placeholder="Nuevo concepto">
         <button type="button" id="cfg-agregar-btn">Agregar</button>
       </div>
     </div>
@@ -998,7 +998,7 @@
 
 
   <div class="search-wrap" id="search-wrap" style="display:none;">
-    <input type="text" id="search" placeholder="Buscar producto...">
+    <input type="text" id="search" enterkeyhint="done" placeholder="Buscar producto...">
     <div class="chips-rapidos" id="chips-rapidos"></div>
   </div>
 
@@ -2213,6 +2213,7 @@ function ppValor(p){
 function ppTiene(p){ return ppInputs[p].value.trim() !== ''; }
 
 function ppSetValor(p, n){
+  if(ppEsCompras()) n = Math.max(0, n);   // en Compras nunca negativo
   n = Math.round(Math.max(-9999.99, Math.min(9999.99, n)) * 100) / 100;
   ppInputs[p].value = n === 0 ? '' : formatearCantidad(String(n).replace('.', ','));
   actualizarCajasTotalForm();
@@ -2256,6 +2257,11 @@ function ppSyncCtrl(forzar){
   ppCajas.textContent = nmCajasTotal.value || '0';
 }
 
+// Por defecto los botones de cantidad RESTAN (modo negativo), salvo en "Compras",
+// donde arrancan sumando y el valor nunca puede quedar por debajo de 0 (el − sigue sirviendo para corregir).
+function ppEsCompras(){ return nmSeccion.value === 'Compras'; }
+function ppModoDefault(){ return ppEsCompras() ? 1 : -1; }
+
 function ppSetModo(m){
   ppModo = m;
   ppMas.classList.toggle('on', m === 1);
@@ -2265,11 +2271,11 @@ function ppSetModo(m){
 }
 
 ppChips.innerHTML = PP_CHIPS.map(q => `<button type="button" data-q="${q}"></button>`).join('');
-ppSetModo(1);
+ppSetModo(ppModoDefault());
 
 function ppAbrirPicker(producto){
   ppSel = (producto && ppInputs[producto]) ? producto : null;
-  ppSetModo(1);
+  ppSetModo(ppModoDefault());
   ppModal.classList.remove('hidden');
   ppRenderGrid();
   ppSyncCtrl(true);
@@ -2293,7 +2299,7 @@ ppModal.addEventListener('click', (e) => { if(e.target === ppModal) ppCerrarPick
 ppGrid.addEventListener('click', (e) => {
   const b = e.target.closest('.pp-btn');
   if(!b || !ppInputs[b.dataset.p]) return;
-  if(ppSel !== b.dataset.p){ ppSel = b.dataset.p; ppSetModo(1); }
+  if(ppSel !== b.dataset.p){ ppSel = b.dataset.p; ppSetModo(ppModoDefault()); }
   ppRenderGrid();
   ppSyncCtrl(true);
 });
@@ -2316,11 +2322,19 @@ ppBorrar.addEventListener('click', () => {
   ppSyncCtrl(true);
 });
 
+// Tecla "OK/Listo" del teclado del celular: cierra el teclado
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && e.target.matches && e.target.matches('#pp-cant, #nm-concepto, #nm-notas, #search')){
+    e.preventDefault();
+    e.target.blur();
+  }
+});
+
 // Escribir a mano la cantidad exacta del producto elegido
 ppCant.addEventListener('focus', () => { try{ ppCant.select(); }catch(_){} });
 ppCant.addEventListener('input', () => {
   if(!ppSel) return;
-  const v = formatearCantidad(ppCant.value);
+  const v = formatearCantidad(ppEsCompras() ? ppCant.value.replace(/-/g, '') : ppCant.value);
   ppCant.value = v;
   ppInputs[ppSel].value = v;
   actualizarCajasTotalForm();
