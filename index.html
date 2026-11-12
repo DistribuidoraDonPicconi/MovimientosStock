@@ -734,6 +734,47 @@
     font-size:14px; font-weight:800; color:var(--azul-osc);
   }
   .pp-total span:last-child{ font-size:18px; color:var(--azul); }
+  /* Selector de fecha propio */
+  .fecha-btn{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:11px 12px; border-radius:10px; border:1px solid var(--azul-borde);
+    background:#fff; font-size:17px; color:#1a1f2b; cursor:pointer; text-align:left;
+    font-family:inherit;
+  }
+  .fecha-btn.vacio .fp-texto{ color:#9aa3b8; }
+  .fecha-btn svg{ width:19px; height:19px; color:var(--azul); flex-shrink:0; }
+  .resumen-fecha-campo .fecha-btn{ font-size:15px; padding:10px 12px; border-radius:11px; }
+  #fecha-modal{
+    position:fixed; inset:0; z-index:180;
+    background:rgba(17,22,36,0.55);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  #fecha-modal.hidden{ display:none; }
+  .fp-nav{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  .fp-nav button{
+    border:1px solid var(--azul-borde); background:#fff; color:var(--azul);
+    border-radius:11px; height:42px; cursor:pointer; font-weight:800;
+  }
+  .fp-nav .fp-flecha{ width:44px; font-size:20px; line-height:1; flex-shrink:0; }
+  .fp-nav .fp-titulo{ flex:1; font-size:17px; color:var(--azul-osc); background:var(--azul-suave); }
+  .fp-nav button:active{ opacity:0.85; }
+  .fp-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .fp-grid.meses{ grid-template-columns:repeat(3,1fr); gap:8px; }
+  .fp-dow{
+    text-align:center; font-size:12.5px; font-weight:800; color:var(--texto-tenue); padding:4px 0 6px;
+  }
+  .fp-dia, .fp-mes{
+    min-height:44px; border:1.5px solid transparent; background:transparent; border-radius:11px;
+    font-size:16px; font-weight:700; color:#1a1f2b; cursor:pointer; font-family:inherit;
+  }
+  .fp-mes{ border-color:var(--azul-borde); background:#f2f4f8; color:#3a4560; font-size:15.5px; min-height:52px; }
+  .fp-dia.vacio{ visibility:hidden; cursor:default; }
+  .fp-dia.hoy, .fp-mes.hoy{ border-color:var(--azul); }
+  .fp-dia.sel, .fp-mes.sel{
+    background:var(--azul); border-color:var(--azul); color:#fff;
+    box-shadow:0 2px 6px rgba(42,92,201,0.35);
+  }
+  .fp-dia:active:not(.vacio), .fp-mes:active{ opacity:0.85; }
 </style>
 </head>
 <body>
@@ -803,7 +844,7 @@
       <input type="hidden" id="nm-edit-id">
 	  
 	  <label>Fecha</label>
-      <input type="date" id="nm-fecha">
+      <input type="hidden" id="nm-fecha" data-fecha>
 
       <label>Sección</label>
       <div class="nm-seccion-grid" id="nm-seccion-grid"></div>
@@ -867,6 +908,27 @@
     </div>
     <div class="nuevo-footer">
       <button class="btn-guardar" id="pp-listo">Listo</button>
+    </div>
+  </div>
+</div>
+
+<div id="fecha-modal" class="hidden">
+  <div class="nuevo-box">
+    <div class="nuevo-header">
+      <h3>Elegí la fecha</h3>
+      <button class="nuevo-close" id="fp-cerrar" aria-label="Cerrar">×</button>
+    </div>
+    <div class="nuevo-body">
+      <div class="fp-nav">
+        <button type="button" class="fp-flecha" id="fp-prev" aria-label="Anterior">‹</button>
+        <button type="button" class="fp-titulo" id="fp-titulo"></button>
+        <button type="button" class="fp-flecha" id="fp-next" aria-label="Siguiente">›</button>
+      </div>
+      <div class="fp-grid" id="fp-grid"></div>
+    </div>
+    <div class="nuevo-footer">
+      <button class="btn-cancelar" id="fp-cancelar">Cancelar</button>
+      <button class="btn-guardar" id="fp-hoy">Hoy</button>
     </div>
   </div>
 </div>
@@ -960,11 +1022,11 @@
     <div class="resumen-personalizado hidden" id="resumen-personalizado">
       <div class="resumen-fecha-campo">
         <label for="resumen-desde">Desde</label>
-        <input type="date" id="resumen-desde">
+        <input type="hidden" id="resumen-desde" data-fecha>
       </div>
       <div class="resumen-fecha-campo">
         <label for="resumen-hasta">Hasta</label>
-        <input type="date" id="resumen-hasta">
+        <input type="hidden" id="resumen-hasta" data-fecha>
       </div>
     </div>
     <div class="resumen-filtros-fila">
@@ -1116,6 +1178,126 @@ function formatNum(n){
     maximumFractionDigits: 2
   });
 }
+
+/* ============== Selector de fecha propio ============== */
+// Reemplaza al <input type="date"> nativo. Cada input[data-fecha] pasa a ser
+// un campo oculto (conserva el valor YYYY-MM-DD, igual que antes) y se le
+// agrega un botón que abre un calendario con el estilo de la app. Al elegir
+// un día se dispara el evento 'change', así la lógica existente no cambia.
+const FP_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const FP_MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const FP_DIAS = ['L','M','M','J','V','S','D'];   // semana de lunes a domingo
+const FP_ICONO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+const fpModal = document.getElementById('fecha-modal');
+const fpGrid = document.getElementById('fp-grid');
+const fpTitulo = document.getElementById('fp-titulo');
+let fpInput = null, fpVista = 'dias', fpMes = 0, fpAnio = 0;
+
+function fpParse(str){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function fpSyncBoton(input){
+  const d = fpParse(input.value);
+  input._fpBtn.querySelector('.fp-texto').textContent = d ? formatFecha(d) : 'Elegir fecha';
+  input._fpBtn.classList.toggle('vacio', !d);
+}
+function fpElegir(fechaStr){
+  if(!fpInput) return;
+  fpInput.value = fechaStr;
+  fpInput.dispatchEvent(new Event('change'));
+  fpCerrar();
+}
+function fpCerrar(){ fpModal.classList.add('hidden'); fpInput = null; }
+
+function fpRender(){
+  const sel = fpInput ? fpParse(fpInput.value) : null;
+  const hoy = new Date();
+  if(fpVista === 'meses'){
+    fpTitulo.textContent = String(fpAnio);
+    fpGrid.className = 'fp-grid meses';
+    fpGrid.innerHTML = FP_MESES_CORTOS.map((nombre, i) => {
+      const esHoy = hoy.getFullYear() === fpAnio && hoy.getMonth() === i;
+      const esSel = sel && sel.getFullYear() === fpAnio && sel.getMonth() === i;
+      return `<button type="button" class="fp-mes${esHoy ? ' hoy' : ''}${esSel ? ' sel' : ''}" data-m="${i}">${nombre}</button>`;
+    }).join('');
+    return;
+  }
+  fpTitulo.textContent = `${FP_MESES[fpMes]} ${fpAnio}`;
+  fpGrid.className = 'fp-grid';
+  const offset = (new Date(fpAnio, fpMes, 1).getDay() + 6) % 7;
+  const diasMes = new Date(fpAnio, fpMes + 1, 0).getDate();
+  let html = FP_DIAS.map(d => `<div class="fp-dow">${d}</div>`).join('');
+  for(let i = 0; i < offset; i++) html += '<button type="button" class="fp-dia vacio" tabindex="-1" disabled></button>';
+  for(let d = 1; d <= diasMes; d++){
+    const esHoy = hoy.getFullYear() === fpAnio && hoy.getMonth() === fpMes && hoy.getDate() === d;
+    const esSel = sel && sel.getFullYear() === fpAnio && sel.getMonth() === fpMes && sel.getDate() === d;
+    html += `<button type="button" class="fp-dia${esHoy ? ' hoy' : ''}${esSel ? ' sel' : ''}" data-d="${d}">${d}</button>`;
+  }
+  fpGrid.innerHTML = html;
+}
+
+function fpAbrir(input){
+  fpInput = input;
+  const base = fpParse(input.value) || new Date();
+  fpMes = base.getMonth();
+  fpAnio = base.getFullYear();
+  fpVista = 'dias';
+  fpRender();
+  fpModal.classList.remove('hidden');
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+
+fpGrid.addEventListener('click', (e) => {
+  const dia = e.target.closest('.fp-dia[data-d]');
+  if(dia){
+    fpElegir(fechaLocalInput(new Date(fpAnio, fpMes, Number(dia.dataset.d))));
+    return;
+  }
+  const mes = e.target.closest('.fp-mes');
+  if(mes){
+    fpMes = Number(mes.dataset.m);
+    fpVista = 'dias';
+    fpRender();
+  }
+});
+document.getElementById('fp-prev').addEventListener('click', () => {
+  if(fpVista === 'meses'){ fpAnio--; }
+  else{ fpMes--; if(fpMes < 0){ fpMes = 11; fpAnio--; } }
+  fpRender();
+});
+document.getElementById('fp-next').addEventListener('click', () => {
+  if(fpVista === 'meses'){ fpAnio++; }
+  else{ fpMes++; if(fpMes > 11){ fpMes = 0; fpAnio++; } }
+  fpRender();
+});
+fpTitulo.addEventListener('click', () => {
+  fpVista = fpVista === 'dias' ? 'meses' : 'dias';
+  fpRender();
+});
+document.getElementById('fp-hoy').addEventListener('click', () => fpElegir(fechaLocalInput(new Date())));
+document.getElementById('fp-cancelar').addEventListener('click', fpCerrar);
+document.getElementById('fp-cerrar').addEventListener('click', fpCerrar);
+fpModal.addEventListener('click', (e) => { if(e.target === fpModal) fpCerrar(); });
+
+document.querySelectorAll('input[data-fecha]').forEach(input => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'fecha-btn vacio';
+  btn.innerHTML = `<span class="fp-texto">Elegir fecha</span>${FP_ICONO}`;
+  input.insertAdjacentElement('afterend', btn);
+  input._fpBtn = btn;
+  // Cada vez que el código le asigne .value al input (ej: al abrir el
+  // formulario), el texto del botón se actualiza solo.
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  Object.defineProperty(input, 'value', {
+    get(){ return desc.get.call(this); },
+    set(v){ desc.set.call(this, v); fpSyncBoton(this); }
+  });
+  btn.addEventListener('click', () => fpAbrir(input));
+  fpSyncBoton(input);
+});
+/* =============================================== */
 
 /* ============== Login con Google ============== */
 // La sesión la maneja Firebase Auth (persiste sola entre visitas y renueva
@@ -2076,6 +2258,73 @@ function formatearCantidad(valorCrudo){
   return resultado;
 }
 
+// Formatea el valor de un input EN VIVO sin mandar el cursor al final.
+// Cuenta cuántos caracteres "significativos" (dígitos y coma) hay antes del
+// cursor, formatea, y vuelve a poner el cursor después de esa misma cantidad
+// de caracteres significativos en el texto nuevo. Los puntos de miles y el $
+// no cuentan, así que el cursor no se corre cuando aparecen o desaparecen.
+function formatearConCursor(inp, e, sinNegativo){
+  const SIG = /[0-9,]/g;
+  const sig = (s) => (s.match(SIG) || []).length;
+  let crudo = inp.value;
+  let pos = inp.selectionStart;
+  if(pos === null || pos === undefined) pos = crudo.length;
+
+  // En algunas secciones (ej: Compras) no se admiten negativos: se saca el
+  // "-" y se corrige la posición del cursor en consecuencia.
+  if(sinNegativo && crudo.indexOf('-') !== -1){
+    pos -= (crudo.slice(0, pos).match(/-/g) || []).length;
+    crudo = crudo.replace(/-/g, '');
+  }
+
+  // Si con Backspace/Supr se borró solo un separador (punto de miles o $),
+  // el formateo lo volvería a poner y el usuario quedaría trabado. En ese caso
+  // se borra en su lugar el dígito vecino.
+  const prev = inp._prevVal || '';
+  const tipo = e && e.inputType;
+  if((tipo === 'deleteContentBackward' || tipo === 'deleteContentForward')
+      && crudo.length < prev.length && sig(crudo) === sig(prev)){
+    if(tipo === 'deleteContentBackward'){
+      let i = pos - 1;
+      while(i >= 0 && !/[0-9,]/.test(crudo[i])) i--;
+      if(i >= 0){ crudo = crudo.slice(0, i) + crudo.slice(i + 1); pos = i; }
+    }else{
+      let i = pos;
+      while(i < crudo.length && !/[0-9,]/.test(crudo[i])) i++;
+      if(i < crudo.length){ crudo = crudo.slice(0, i) + crudo.slice(i + 1); pos = i; }
+    }
+  }
+
+  const sigAntes = sig(crudo.slice(0, pos));
+  const nuevo = formatearCantidad(crudo);
+  inp.value = nuevo;
+  inp._prevVal = nuevo;
+
+  // buscar en el texto nuevo la posición que deja `sigAntes` caracteres
+  // significativos a la izquierda del cursor
+  let nuevaPos = nuevo.length;
+  if(sigAntes === 0){
+    const m = nuevo.search(/[0-9,]/);
+    nuevaPos = m === -1 ? nuevo.length : m;
+  }else{
+    let vistos = 0;
+    for(let i = 0; i < nuevo.length; i++){
+      if(/[0-9,]/.test(nuevo[i])){
+        vistos++;
+        if(vistos === sigAntes){ nuevaPos = i + 1; break; }
+      }
+    }
+  }
+  try{ inp.setSelectionRange(nuevaPos, nuevaPos); }catch(_){}
+}
+
+// Guarda el valor justo antes de cada edición (para detectar borrados de separadores)
+document.addEventListener('beforeinput', (e) => {
+  if(e.target && e.target.matches && e.target.matches('#pp-cant, .nm-prod-input')){
+    e.target._prevVal = e.target.value;
+  }
+});
+
 const nmCajasTotal = document.getElementById('nm-cajas-total');
 
 // Recalcula el campo "Cajas total" del formulario en vivo, leyendo lo
@@ -2093,8 +2342,8 @@ function actualizarCajasTotalForm(){
 }
 
 document.querySelectorAll('.nm-prod-input').forEach(inp => {
-  inp.addEventListener('input', () => {
-    inp.value = formatearCantidad(inp.value);
+  inp.addEventListener('input', (e) => {
+    formatearConCursor(inp, e);
     actualizarCajasTotalForm();
   });
 });
@@ -2285,12 +2534,12 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Escribir a mano la cantidad exacta del producto elegido
-ppCant.addEventListener('focus', () => { try{ ppCant.select(); }catch(_){} });
-ppCant.addEventListener('input', () => {
+// (sin "seleccionar todo" al enfocar: eso impedía tocar en medio del número
+// para posicionar el cursor y editar; para vaciarlo está el botón "Borrar")
+ppCant.addEventListener('input', (e) => {
   if(!ppSel) return;
-  const v = formatearCantidad(ppEsCompras() ? ppCant.value.replace(/-/g, '') : ppCant.value);
-  ppCant.value = v;
-  ppInputs[ppSel].value = v;
+  formatearConCursor(ppCant, e, ppEsCompras());
+  ppInputs[ppSel].value = ppCant.value;
   actualizarCajasTotalForm();
   renderResumenProd();
 });
