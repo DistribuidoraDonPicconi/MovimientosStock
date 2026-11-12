@@ -40,8 +40,6 @@
 
   // Expuestos en window porque el resto del código (fuera de este módulo)
   // todavía es JS clásico, no un módulo — así lo puede usar sin import.
-  window.firebaseDb = db;
-  window.firebaseAuth = firebaseAuth;
   window.firebaseSignOut = () => signOut(firebaseAuth);
   // Única fuente de verdad de la sesión: Firebase Auth (persiste sola y renueva el token).
   window.firebaseOnAuth = (cb) => onAuthStateChanged(firebaseAuth, cb);
@@ -56,9 +54,8 @@
   };
 
   // Trae todos los documentos de la colección "movimientos" y los devuelve
-  // como array plano [{id, ...datos}, ...] — la conversión al formato que
-  // usa el resto de la app (columnas tipo planilla) se hace afuera de este
-  // módulo, en cargarDatos().
+  // como array [{id, usuario, fechaReal, fecha, seccion, concepto, notas,
+  // productos:{...}}, ...].
   window.firestoreLeerMovimientos = async () => {
     const q = query(collection(db, "movimientos"), orderBy("fechaReal"));
     const snap = await getDocs(q);
@@ -92,7 +89,6 @@
     --azul: #2a5cc9;
     --azul-suave: #eef3fc;
     --azul-borde: #d7e2f5;
-    --ambar: #b5651d;
     --fondo: #f4f7fc;
     --linea: #e7ecf5;
     --verde: #1f8a4c;
@@ -1027,10 +1023,10 @@
 <script>
 /* ============== CONFIGURACIÓN ============== */
 const CONFIG = {
-  // Client ID de OAuth de Google (tiene que ser el mismo que en Código.gs)
+  // Client ID de OAuth de Google (para el botón de inicio de sesión)
   GOOGLE_CLIENT_ID: '378959969387-pbuj8q3a48215mqobdhjek1n1c394opm.apps.googleusercontent.com',
 
-  // Rol de cada persona permitida (tiene que coincidir con el ROLES de Código.gs).
+  // Rol de cada persona permitida (tiene que coincidir con las reglas de Firestore).
   // 'admin': accede a todo (agregar, copiar, editar, eliminar).
   // 'colaborador': solo puede agregar movimientos nuevos.
   // 'sin_permisos': solo puede ver, ningún botón de acción.
@@ -1043,9 +1039,6 @@ const CONFIG = {
 	"jj978536@gmail.com": "sin_permisos",
     'grandoliosergio109@gmail.com': 'sin_permisos'
   },
-
-  // Nombre EXACTO de la columna de fecha a usar para ordenar / mostrar
-  CAMPO_FECHA: 'Fecha',
 
   // Columnas de producto, en el orden en que querés que aparezcan
   PRODUCTOS: [
@@ -1067,7 +1060,6 @@ const headerTitle = document.getElementById('header-title');
 const btnRefresh = document.getElementById('btn-refresh');
 const btnCompartir = document.getElementById('btn-compartir');
 const btnDescargar = document.getElementById('btn-descargar');
-const appEl = document.getElementById('app');
 const resumenControlsEl = document.getElementById('resumen-controls');
 const resumenPersonalizadoEl = document.getElementById('resumen-personalizado');
 const resumenDesdeEl = document.getElementById('resumen-desde');
@@ -1077,8 +1069,8 @@ const resumenConceptoEl = document.getElementById('resumen-concepto');
 let resumenRango = 'esta-semana';
 
 // Convierte el valor guardado en "Fecha" a un objeto Date en horario LOCAL.
-// Se usa en todos los lugares que antes hacían new Date(mov['Fecha']) a
-// secas, porque un string "YYYY-MM-DD" sin hora, JS lo toma como
+// Se usa en todos los lugares donde hace falta una fecha del movimiento,
+// porque un string "YYYY-MM-DD" sin hora, JS lo toma como
 // medianoche UTC — y en Argentina (UTC-3) eso cae en el día anterior.
 function parseFechaLocal_(valor){
   if(!valor) return new Date(NaN);
@@ -1089,6 +1081,11 @@ function parseFechaLocal_(valor){
     }
   }
   return new Date(valor);
+}
+
+// Importe de un movimiento en un producto. Devuelve NaN si no se cargó nada.
+function importe(mov, p){
+  return mov.productos ? parseFloat(mov.productos[p]) : NaN;
 }
 
 function formatFecha(valor){
@@ -1171,7 +1168,7 @@ function handleCredentialResponse(response){
     return;
   }
   window.firebaseSignInConCredencialGoogle(response.credential).catch((err) => {
-    mostrarPantallaLogin('No se pudo autenticar con Firebase.<br>' + (err && err.message ? err.message : ''));
+    mostrarPantallaLogin('No se pudo autenticar con Firebase.<br>' + escHTML_(err && err.message ? err.message : ''));
   });
 }
 
@@ -1205,7 +1202,7 @@ function iniciarSesionFirebase(){
     const rol = CONFIG.ROLES[email] || null;
     if(!rol){
       window.firebaseSignOut().catch(() => {});
-      mostrarPantallaLogin('Tu cuenta (' + (user.email || '') + ') no tiene acceso a esta app.');
+      mostrarPantallaLogin('Tu cuenta (' + escHTML_(user.email || '') + ') no tiene acceso a esta app.');
       return;
     }
     emailActual = String(user.email || '');
@@ -1247,55 +1244,28 @@ setTimeout(() => {
     mostrarPantallaLogin('No se pudo verificar la sesión. Iniciá sesión de nuevo.');
   }
 }, 8000);
-// Maneja una respuesta que indica que el token no es válido o que el
-// email no está en la lista permitida.
-function esRespuestaNoAutorizada(data){
-  if(data && data.auth === true){
-    // Cerramos también la sesión de Firebase: si no, al volver a loguear con el
-    // mismo usuario onAuthStateChanged no se dispara y quedaría la pantalla trabada.
-    if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
-    mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció.<br>Probá iniciar sesión nuevamente.');
-    return true;
-  }
-  return false;
+// Se usa cuando Firestore responde 'permission-denied': el token no es válido
+// o el usuario no tiene permiso según las reglas de seguridad.
+function cerrarSesionPorFaltaDePermiso(){
+  // Cerramos también la sesión de Firebase: si no, al volver a loguear con el
+  // mismo usuario onAuthStateChanged no se dispara y quedaría la pantalla trabada.
+  if(window.firebaseSignOut){ window.firebaseSignOut().catch(() => {}); }
+  mostrarPantallaLogin('Esta cuenta de Google no tiene permiso para acceder a la app, o la sesión actual venció.<br>Probá iniciar sesión nuevamente.');
 }
 /* =============================================== */
 
-// Convierte un documento de Firestore ({id, usuario, fechaReal, fecha,
-// seccion, concepto, notas, productos:{...}}) al mismo formato plano tipo
-// "fila de planilla" que usa el resto de la app (ID, Usuario, Fecha, etc).
-// Así calcularStock(), render() y todo lo demás siguen funcionando igual
-// que cuando los datos venían del Google Sheet.
-function firestoreDocAFilaPlana_(docData){
-  const fila = {
-    'ID': docData.id,
-    'Usuario': docData.usuario || '',
-    'Fecha Real': docData.fechaReal || '',
-    'Fecha': docData.fecha || '',
-    'Sección': docData.seccion || '',
-    'Concepto': docData.concepto || '',
-    'Notas': docData.notas || ''
-  };
-  CONFIG.PRODUCTOS.forEach(p => {
-    const val = docData.productos ? docData.productos[p] : undefined;
-    fila[p] = (val === undefined || val === null) ? '' : val;
-  });
-  return fila;
-}
-
-async function cargarDatos(forzar){
+async function cargarDatos(){
   btnRefresh.classList.add('spinning');
   try{
     const docs = await window.firestoreLeerMovimientos();
-    movimientos = docs.map(firestoreDocAFilaPlana_);
-    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+    movimientos = docs;
     render();
   }catch(err){
     if(err && err.code === 'permission-denied'){
-      esRespuestaNoAutorizada({auth: true});
+      cerrarSesionPorFaltaDePermiso();
       return;
     }
-    mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos.<br>${err.message}</div>`;
+    mainEl.innerHTML = `<div class="state-msg error">No se pudieron cargar los datos.<br>${escHTML_(err.message)}</div>`;
   }finally{
     btnRefresh.classList.remove('spinning');
   }
@@ -1307,10 +1277,10 @@ function calcularStock(){
 
   movimientos.forEach(mov => {
     CONFIG.PRODUCTOS.forEach(p => {
-      const cant = parseFloat(mov[p]);
+      const cant = importe(mov, p);
       if(!isNaN(cant) && cant !== 0){
         stock[p].total += cant;
-        const f = parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]);
+        const f = parseFechaLocal_(mov.fecha);
         if(!isNaN(f) && (!stock[p].ultimaFecha || f > stock[p].ultimaFecha)){
           stock[p].ultimaFecha = f;
         }
@@ -1479,8 +1449,8 @@ const VENTA_TOTAL_VALUE = '__venta_total__';
 
 function seccionCoincide(mov, seccionFiltro){
   if(!seccionFiltro) return true;
-  if(seccionFiltro === VENTA_TOTAL_VALUE) return mov['Sección'] === 'Repartos' || mov['Sección'] === 'Granja';
-  return mov['Sección'] === seccionFiltro;
+  if(seccionFiltro === VENTA_TOTAL_VALUE) return mov.seccion === 'Repartos' || mov.seccion === 'Granja';
+  return mov.seccion === seccionFiltro;
 }
 
 function actualizarOpcionesConcepto(){
@@ -1491,10 +1461,10 @@ function actualizarOpcionesConcepto(){
   const conceptos = new Set();
   if(desde && hasta){
     movimientos.forEach(mov => {
-      const f = parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]);
+      const f = parseFechaLocal_(mov.fecha);
       if(isNaN(f) || f < desde || f > hasta) return;
       if(!seccionCoincide(mov, seccion)) return;
-      const concepto = (mov['Concepto'] || '').trim();
+      const concepto = (mov.concepto || '').trim();
       if(concepto) conceptos.add(concepto);
     });
   }
@@ -1503,7 +1473,7 @@ function actualizarOpcionesConcepto(){
   const mantieneSeleccion = listaOrdenada.includes(seleccionPrevia);
 
   resumenConceptoEl.innerHTML = `<option value="">Todos</option>`
-    + listaOrdenada.map(c => `<option value="${c}">${c}</option>`).join('');
+    + listaOrdenada.map(c => `<option value="${escHTML_(c)}">${escHTML_(c)}</option>`).join('');
   resumenConceptoEl.value = mantieneSeleccion ? seleccionPrevia : '';
   rsSync();
 }
@@ -1519,13 +1489,13 @@ function calcularResumen(){
   if(!desde || !hasta) return resumen;
 
   movimientos.forEach(mov => {
-    const f = parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]);
+    const f = parseFechaLocal_(mov.fecha);
     if(isNaN(f) || f < desde || f > hasta) return;
     if(!seccionCoincide(mov, seccion)) return;
-    if(concepto && (mov['Concepto'] || '').trim() !== concepto) return;
+    if(concepto && (mov.concepto || '').trim() !== concepto) return;
 
     CONFIG.PRODUCTOS.forEach(p => {
-      const cant = parseFloat(mov[p]);
+      const cant = importe(mov, p);
       if(!isNaN(cant) && cant !== 0){
         if(cant > 0) resumen[p].entradas += cant;
         else resumen[p].salidas += Math.abs(cant);
@@ -1543,7 +1513,7 @@ function calcularResumen(){
 const TROZADO_PRODUCTOS = ['Cuarto', 'Filet de Muslo', 'Ala', 'Pechuga', 'Pechuga B', 'Pechuguín', 'Menudo', 'Molida', 'Carcaza'];
 
 // Calcula el total en cajas equivalentes a partir de un objeto con cantidades
-// por producto (sirve tanto para un movimiento de la planilla como para los
+// por producto (sirve tanto para los productos de un movimiento como para los
 // valores tipeados en el formulario). No se guarda en ningún lado: se
 // recalcula siempre a partir de las cantidades por producto.
 function calcularCajasTotal(valores){
@@ -1628,7 +1598,7 @@ function renderResumen(){
 }
 
 function renderMovimientos(filtro){
-  // Se muestran en el mismo orden en que están en la planilla (orden de carga),
+  // Se muestran en el mismo orden en que vienen de Firestore (orden de carga),
   // sin reordenar por Fecha. Así, si alguien carga mal la fecha, el error se
   // nota porque el movimiento aparece fuera de lugar en vez de quedar oculto.
   const ordenados = movimientos;
@@ -1643,38 +1613,38 @@ function renderMovimientos(filtro){
 
   const filas = ordenados
     .filter(mov => {
-      if(seccionRapida && mov['Sección'] !== seccionRapida) return false;
+      if(seccionRapida && mov.seccion !== seccionRapida) return false;
       if(!filtro) return true;
       // coincide si el filtro matchea un producto con movimiento en esa fila,
       // o si matchea el concepto/sección/notas
-      const matchProducto = CONFIG.PRODUCTOS.some(p => p.toLowerCase().includes(filtro.toLowerCase()) && parseFloat(mov[p]));
-      const texto = `${mov['Concepto']||''} ${mov['Sección']||''} ${mov['Notas']||''} ${mov['Usuario']||''}`.toLowerCase();
+      const matchProducto = CONFIG.PRODUCTOS.some(p => p.toLowerCase().includes(filtro.toLowerCase()) && importe(mov, p));
+      const texto = `${mov.concepto||''} ${mov.seccion||''} ${mov.notas||''} ${mov.usuario||''}`.toLowerCase();
       return matchProducto || texto.includes(filtro.toLowerCase());
     })
     .map(mov => {
       const celdasProducto = productosVisibles.map(p => {
-        const val = parseFloat(mov[p]);
+        const val = importe(mov, p);
         if(!val) return `<td class="num zero">-</td>`;
         const cls = val >= 0 ? 'pos' : 'neg';
         const signo = val >= 0 ? '+' : '';
         return `<td class="num ${cls}">${signo}${formatNum(val)}</td>`;
       }).join('');
 
-      const cajasTotal = calcularCajasTotal(mov);
+      const cajasTotal = calcularCajasTotal(mov.productos || {});
       const cajasCls = cajasTotal === 0 ? 'zero' : (cajasTotal > 0 ? 'pos' : 'neg');
       const cajasSigno = cajasTotal > 0 ? '+' : '';
       const celdaCajasTotal = cajasTotal === 0
         ? `<td class="num zero">-</td>`
         : `<td class="num ${cajasCls}">${cajasSigno}${formatNum(cajasTotal)}</td>`;
 
-      return `<tr class="mov-row" data-id="${mov['ID'] || ''}">
-        <td class="fecha">${formatFecha(mov[CONFIG.CAMPO_FECHA])}</td>
-        <td>${mov['Sección'] || '-'}</td>
-        <td>${mov['Concepto'] || '-'}</td>
-        <td>${mov['Notas'] || '-'}</td>
+      return `<tr class="mov-row" data-id="${escHTML_(mov.id || '')}">
+        <td class="fecha">${formatFecha(mov.fecha)}</td>
+        <td>${escHTML_(mov.seccion || '-')}</td>
+        <td>${escHTML_(mov.concepto || '-')}</td>
+        <td>${escHTML_(mov.notas || '-')}</td>
         ${celdasProducto}
         ${celdaCajasTotal}
-        <td>${mov['Usuario'] || '-'}</td>
+        <td>${escHTML_(mov.usuario || '-')}</td>
       </tr>`;
     }).join('');
 
@@ -1683,7 +1653,7 @@ function renderMovimientos(filtro){
     return;
   }
 
-  const headerProductos = productosVisibles.map(p => `<th>${p}</th>`).join('');
+  const headerProductos = productosVisibles.map(p => `<th>${escHTML_(p)}</th>`).join('');
 
   mainEl.innerHTML = `
     <div class="mov-table-wrap">
@@ -1717,14 +1687,14 @@ function renderMovimientos(filtro){
 function armarExcelMovimientos(){
   const filas = movimientos.map(mov => {
     const fila = {
-      'Fecha': formatFecha(mov[CONFIG.CAMPO_FECHA]),
-      'Sección': mov['Sección'] || '',
-      'Concepto': mov['Concepto'] || '',
-      'Notas': mov['Notas'] || ''
+      'Fecha': formatFecha(mov.fecha),
+      'Sección': mov.seccion || '',
+      'Concepto': mov.concepto || '',
+      'Notas': mov.notas || ''
     };
-    CONFIG.PRODUCTOS.forEach(p => { fila[p] = parseFloat(mov[p]) || 0; });
-    fila['Cajas total'] = calcularCajasTotal(mov) || 0;
-    fila['Usuario'] = mov['Usuario'] || '';
+    CONFIG.PRODUCTOS.forEach(p => { fila[p] = importe(mov, p) || 0; });
+    fila['Cajas total'] = calcularCajasTotal(mov.productos || {}) || 0;
+    fila['Usuario'] = mov.usuario || '';
     return fila;
   });
 
@@ -1795,25 +1765,14 @@ btnDescargar.addEventListener('click', descargarMovimientosExcel);
 // Guarda la posición de scroll de cada pestaña para restaurarla al volver
 const scrollState = {
   stock: 0,
-  resumen: 0,
-  movimientos: { top: 0, left: 0 }
+  resumen: 0
 };
 
-// Si está en true, la próxima vez que se restaure el scroll de Movimientos
-// se va directo al final (abajo a la izquierda) en vez de la posición previa.
-// Se usa al sincronizar datos (cargarDatos), solo si ya se estaba en esa pestaña.
-let irAlFondoMovimientos = false;
-
 function guardarScrollActual(){
-  if(currentTab === 'movimientos'){
-    const movScroll = document.getElementById('mov-scroll');
-    if(movScroll){
-      scrollState.movimientos.top = movScroll.scrollTop;
-      scrollState.movimientos.left = movScroll.scrollLeft;
-    }
-  }else if(currentTab === 'resumen'){
+  // Movimientos no guarda posición: siempre se muestra abajo del todo.
+  if(currentTab === 'resumen'){
     scrollState.resumen = mainEl.scrollTop;
-  }else{
+  }else if(currentTab === 'stock'){
     scrollState.stock = mainEl.scrollTop;
   }
 }
@@ -1886,7 +1845,7 @@ function setTab(tab){
   render();
   // Al entrar a Stock Actual desde otra pestaña, sincronizamos solo,
   // como si se tocara el botón de actualizar (trae el dato en vivo).
-  if(tab === 'stock') cargarDatos(true);
+  if(tab === 'stock') cargarDatos();
 }
 
 document.getElementById('tab-stock').addEventListener('click', () => setTab('stock'));
@@ -1907,14 +1866,11 @@ resumenHastaEl.addEventListener('change', () => { if(resumenRango === 'personali
 resumenSeccionEl.addEventListener('change', renderResumen);
 resumenConceptoEl.addEventListener('change', renderResumen);
 
-// El botón de sincronizar es una acción explícita: fuerza traer el dato
-// en vivo de la planilla (salteando la caché), por si alguien la editó
-// a mano desde fuera de la app. Igual que en la app de Saldos.
-btnRefresh.addEventListener('click', () => cargarDatos(true));
+// El botón de sincronizar vuelve a pedir los movimientos a Firestore.
+btnRefresh.addEventListener('click', () => cargarDatos());
 searchEl.addEventListener('input', () => {
   // al filtrar, arrancamos la vista de nuevo desde arriba
   scrollState.stock = 0;
-  scrollState.movimientos = { top: 0, left: 0 };
   render();
 });
 
@@ -1932,7 +1888,6 @@ chipsRapidosEl.addEventListener('click', (e) => {
   seccionRapida = (seccionRapida === btn.dataset.sec) ? '' : btn.dataset.sec;
   chipsRapidosEl.querySelectorAll('.chip-rapido').forEach(b =>
     b.classList.toggle('active', b.dataset.sec === seccionRapida));
-  scrollState.movimientos = { top: 0, left: 0 };
   render();   // al renderizar, Movimientos queda abajo del todo (último cargado)
 });
 resumenSeccionEl.innerHTML += SECCIONES.map(s => `<option value="${s}">${s}</option>`).join('')
@@ -2017,13 +1972,13 @@ function deseleccionarFila(){
 }
 
 fabEditar.addEventListener('click', () => {
-  const mov = movimientos.find(m => String(m['ID']) === String(filaSeleccionadaId));
+  const mov = movimientos.find(m => String(m.id) === String(filaSeleccionadaId));
   deseleccionarFila();
   if(mov) abrirNuevoModal(mov, true);
 });
 
 fabCopiar.addEventListener('click', () => {
-  const mov = movimientos.find(m => String(m['ID']) === String(filaSeleccionadaId));
+  const mov = movimientos.find(m => String(m.id) === String(filaSeleccionadaId));
   deseleccionarFila();
   if(mov) abrirNuevoModal(mov, false);
 });
@@ -2051,8 +2006,7 @@ document.getElementById('confirm-eliminar-aceptar').addEventListener('click', as
   try{
     await window.firestoreEliminarMovimiento(idBorrar);
 
-    movimientos = movimientos.filter(m => String(m['ID']) !== String(idBorrar));
-    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
+    movimientos = movimientos.filter(m => String(m.id) !== String(idBorrar));
 
     confirmEliminarModal.classList.add('hidden');
     idAEliminar = null;
@@ -2146,7 +2100,7 @@ document.querySelectorAll('.nm-prod-input').forEach(inp => {
 });
 
 // Antes de enviar: quita los puntos de miles y deja el número limpio
-// (la coma decimal se convierte a punto del lado del Apps Script).
+// (la coma decimal se convierte a punto en quien llama a esta función).
 function limpiarCantidadParaEnvio(valorFormateado){
   return valorFormateado.replace(/\./g, '');
 }
@@ -2348,7 +2302,6 @@ nmSeccionGrid.innerHTML = SECCIONES.map(s => `
 
 /* ============== Conceptos condicionales por sección ============== */
 const CONCEPTOS_LS_KEY = 'stockdp_conceptos_por_seccion';
-const CONCEPTO_OTRO = '__otro__';
 let conceptosPorSeccion = {};
 try{
   conceptosPorSeccion = JSON.parse(localStorage.getItem(CONCEPTOS_LS_KEY) || '{}') || {};
@@ -2461,7 +2414,7 @@ nmSeccionGrid.querySelectorAll('.nm-seccion-btn').forEach(btn => {
   });
 });
 
-// Convierte un valor numérico tal como viene de la planilla (ej: -52.5)
+// Convierte un valor numérico tal como viene de Firestore (ej: -52.5)
 // al formato que usan los inputs (ej: "-52,5", con separador de miles si aplica)
 function numeroAInputStr(num){
   if(num === undefined || num === null || num === '') return '';
@@ -2473,20 +2426,20 @@ function numeroAInputStr(num){
 function abrirNuevoModal(mov, modoEditar){
   const precargar = !!mov;
   movEnEdicion = (precargar && modoEditar) ? mov : null;
-  nmEditId.value = (precargar && modoEditar) ? (mov['ID'] || '') : '';
+  nmEditId.value = (precargar && modoEditar) ? (mov.id || '') : '';
   nuevoTitulo.textContent = modoEditar ? 'Editar movimiento' : (precargar ? 'Copiar movimiento' : 'Nuevo movimiento');
 
-  seleccionarSeccion(precargar ? (mov['Sección'] || '') : 'Compras');
-  nmConcepto.value = precargar ? (mov['Concepto'] || '') : '';
+  seleccionarSeccion(precargar ? (mov.seccion || '') : 'Compras');
+  nmConcepto.value = precargar ? (mov.concepto || '') : '';
   refrescarConceptoUI();
-  nmNotas.value = precargar ? (mov['Notas'] || '') : '';
+  nmNotas.value = precargar ? (mov.notas || '') : '';
   nmUsuario.value = emailActual;
-  nmFecha.value = precargar && mov[CONFIG.CAMPO_FECHA]
-    ? fechaLocalInput(parseFechaLocal_(mov[CONFIG.CAMPO_FECHA]))
+  nmFecha.value = precargar && mov.fecha
+    ? fechaLocalInput(parseFechaLocal_(mov.fecha))
     : fechaLocalInput(new Date());
 
   document.querySelectorAll('#nm-productos-principales input, #nm-productos-resto input').forEach(inp => {
-    inp.value = (precargar && modoEditar) ? numeroAInputStr(mov[inp.dataset.producto]) : '';
+    inp.value = (precargar && modoEditar) ? numeroAInputStr(mov.productos && mov.productos[inp.dataset.producto]) : '';
   });
   actualizarCajasTotalForm();
   aplicarProductosPorSeccion();
@@ -2500,34 +2453,6 @@ function abrirNuevoModal(mov, modoEditar){
 
 function cerrarNuevoModal(){
   nuevoModal.classList.add('hidden');
-}
-
-// Construye el objeto de movimiento con las mismas claves y el mismo
-// formato de fecha (ISO) que devuelve el Google Sheet, a partir de lo que
-// se acaba de guardar. Se usa para actualizar la lista en memoria sin
-// tener que pedirle todo de nuevo al servidor.
-function construirMovimientoLocal(payload, idFinal, movOriginal){
-  const mov = {
-    'ID': idFinal,
-    'Usuario': payload.usuario,
-    'Fecha Real': (movOriginal && movOriginal['Fecha Real']) || new Date().toISOString(),
-    'Fecha': payload.fecha
-      ? new Date(payload.fecha + 'T00:00:00').toISOString()
-      : ((movOriginal && movOriginal['Fecha']) || new Date().toISOString()),
-    'Sección': payload.seccion,
-    'Concepto': payload.concepto,
-    'Notas': payload.notas
-  };
-  CONFIG.PRODUCTOS.forEach(p => {
-    const val = payload.productos ? payload.productos[p] : undefined;
-    if(val === undefined || val === null || val === ''){
-      mov[p] = '';
-    }else{
-      const num = parseFloat(String(val).replace(',', '.'));
-      mov[p] = isNaN(num) ? '' : num;
-    }
-  });
-  return mov;
 }
 
 /* ============== Modal Config: listas de conceptos ============== */
@@ -2696,7 +2621,7 @@ btnGuardar.addEventListener('click', async () => {
       id: idFinal,
       usuario: payload.usuario,
       fechaReal: esEdicion
-        ? ((movEnEdicion && movEnEdicion['Fecha Real']) || new Date().toISOString())
+        ? ((movEnEdicion && movEnEdicion.fechaReal) || new Date().toISOString())
         : new Date().toISOString(),
       fecha: payload.fecha,
       seccion: payload.seccion,
@@ -2714,14 +2639,14 @@ btnGuardar.addEventListener('click', async () => {
 
     await window.firestoreGuardarMovimiento(idFinal, docFirestore);
 
-    const movGuardado = construirMovimientoLocal(payload, idFinal, movEnEdicion);
-    const idx = movimientos.findIndex(m => String(m['ID']) === String(idFinal));
+    // Se actualiza la lista en memoria con el mismo documento que se guardó,
+    // sin tener que pedirle todo de nuevo a Firestore.
+    const idx = movimientos.findIndex(m => String(m.id) === String(idFinal));
     if(idx !== -1){
-      movimientos[idx] = movGuardado;
+      movimientos[idx] = docFirestore;
     }else{
-      movimientos.push(movGuardado);
+      movimientos.push(docFirestore);
     }
-    if(currentTab === 'movimientos') irAlFondoMovimientos = true;
 
     cerrarNuevoModal();
     render();
